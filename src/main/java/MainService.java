@@ -15,40 +15,77 @@ import java.time.Instant;
 import java.util.*;
 import java.util.stream.Collectors;
 
-public class Main {
-//    public static HashMap<String, HashMap<String, Double>> getBinancePrices(List<TickerPrice> tickerPrices, ArrayList<String> assets) {
-//        HashMap<String, HashMap<String, Double>> binancePrices = new HashMap<>();
-//        assets.forEach(asset -> binancePrices.put(asset, new HashMap<>()));
-//        tickerPrices.forEach(tickerPrice -> {
-//            String symbol = tickerPrice.getSymbol(); // USDT -> S, [1, len - 2)
-//            for (int i = 0; i < symbol.length() - 1; ++i) {
-//                final String asset1 = symbol.substring(0, i + 1), asset2 = symbol.substring(i + 1);
-//                if (assets.contains(asset1) && assets.contains(asset2)) {
-//                    binancePrices.get(asset1).put(asset2, Double.valueOf(tickerPrice.getPrice()));
-//                    binancePrices.get(asset2).put(asset1, 1 / Double.parseDouble(tickerPrice.getPrice()));
-//                }
-//            }
-//        });
-//
-//        return binancePrices;
-//    }
+public class MainService {
+    private static String liquidityFilter = "0";
+    private static String quoteAssetFilter = "USDT";
+    private static Set<String> allowedBaseAssetsSet = null;
+    private static HashMap<String, Ticker> OKXtickers = null;
+    private static HashMap<String, Ticker> binanceTickers = null;
+    private static ArrayList<ArbChain> arbChains = null;
+    private static Set<String> commonSymbols = null;
 
-//    public static void OKXrequest() throws IOException {
-//        HttpPost request = new HttpPost("https://www.okx.com/api/v5/market/open-oracle");
-//
-//
-//        String responseStr = null;
-//        try (CloseableHttpClient httpClient = HttpClients.createDefault();
-//             CloseableHttpResponse response = httpClient.execute(request)) {
-//            HttpEntity entity = response.getEntity();
-//            if (entity != null) {
-//                responseStr = EntityUtils.toString(entity);
-//            }
-//        }
-//    }
+    public MainService() {}
 
-    public static ArrayList<OKXticker> getOKXtickers() throws IOException, ParseException {
+    public static void setLiquidityFilter(String newLiquidityFilter) {
+        liquidityFilter = newLiquidityFilter;
+    }
 
+    public static void setQuoteAssetFilter(String newQuoteAssetFilter) {
+        quoteAssetFilter = newQuoteAssetFilter;
+    }
+
+    public static void setAllowedBaseAssetsSet(ArrayList<String> newAllowedBaseAssetsList) {
+        allowedBaseAssetsSet = new HashSet<>(newAllowedBaseAssetsList);
+    }
+
+    public static HashMap<String, Ticker> getOKXtickers() {
+        return OKXtickers;
+    }
+
+    public static HashMap<String, Ticker> getBinanceTickers() {
+        return binanceTickers;
+    }
+
+    public static ArrayList<ArbChain> getArbChains() {
+        return arbChains;
+    }
+
+    public static Set<String> getCommonSymbols() {
+        return commonSymbols;
+    }
+
+    public static void updateInstance() throws IOException, ParseException {
+        System.out.println("OKX parsing started.");
+        Instant timeMeasureStart = Instant.now();
+        OKXtickers = tickersToHashMap(genOKXtickers());
+        Instant timeMeasureEnd = Instant.now();
+        System.out.println("OKX parsing finished. Elapsed time: " + Duration.between(timeMeasureStart, timeMeasureEnd).toMillis() + " ms.");
+//        OKXtickers.forEach((symbol, ticker) -> System.out.println(ticker));
+
+        System.out.println("Binance parsing started.");
+        timeMeasureStart = Instant.now();
+        HashMap<String, PairAsset> binanceSymbolsMapping = genBinanceSymbolsMapping();
+        binanceTickers = tickersToHashMap(genBinanceTickers(binanceSymbolsMapping));
+        timeMeasureEnd = Instant.now();
+        System.out.println("Binance parsing finished. Elapsed time: " + Duration.between(timeMeasureStart, timeMeasureEnd).toMillis() + " ms.");
+//        binanceTickers.forEach((symbol, ticker) -> System.out.println(ticker));
+
+        commonSymbols = genMergedBaseAssetList();
+//        commonSymbols.forEach(System.out::println);
+
+        timeMeasureStart = Instant.now();
+        binanceTickers = new HashMap<>(filterTickersMap(binanceTickers, commonSymbols, quoteAssetFilter));
+        OKXtickers = new HashMap<>(filterTickersMap(OKXtickers, commonSymbols, quoteAssetFilter));
+        timeMeasureEnd = Instant.now();
+        System.out.println("Filtered tickers maps for " + Duration.between(timeMeasureStart, timeMeasureEnd).toMillis() + " ms.");
+//        System.out.println(binanceTickers.size() + ", " + OKXtickers.size());
+
+        arbChains = genArbChains();
+        arbChains.sort(new ArbChainComparator());
+        arbChains.forEach(System.out::println);
+    }
+
+    public static ArrayList<OKXticker> genOKXtickers() throws IOException, ParseException {
         HttpGet request = new HttpGet("https://www.okx.com/priapi/v5/market/tickers?t=1668155757120&instType=SPOT");
         String responseStr = null;
         try (CloseableHttpClient httpClient = HttpClients.createDefault();
@@ -114,7 +151,7 @@ public class Main {
         return mapping.get(symbol);
     }
 
-    public static ArrayList<BinanceTicker> getBinanceTickers(HashMap<String, PairAsset> mapping) throws IOException, ParseException {
+    public static ArrayList<BinanceTicker> genBinanceTickers(HashMap<String, PairAsset> mapping) throws IOException, ParseException {
         HttpGet request = new HttpGet("https://api.binance.com/api/v1/ticker/24hr");
 
         String responseStr = null;
@@ -148,18 +185,30 @@ public class Main {
         return tickersMap;
     }
 
-    public static Set<String> genMergedSymbolList(HashMap<String, Ticker> OKXtickers, HashMap<String, Ticker> binanceTickers) {
+    public static Set<String> genMergedBaseAssetList() {
         return OKXtickers.keySet().stream()
                 .filter(binanceTickers::containsKey).collect(Collectors.toSet());
     }
 
+    public static Set<String> genFilteredMergedBaseAssetList() {
+        if (allowedBaseAssetsSet == null)
+            return genMergedBaseAssetList();
+
+        return OKXtickers.keySet().stream()
+                .filter(key -> binanceTickers.containsKey(key) && allowedBaseAssetsSet.contains(key))
+                .collect(Collectors.toSet());
+    }
+
+    // in commonSymbols, quote is allowed, liquidity is ok
     public static Map<String, Ticker> filterTickersMap(Map<String, Ticker> tickers, Set<String> commonSymbols, String allowedSecondAsset) {
         return tickers.entrySet().stream()
-                .filter(e -> commonSymbols.contains(e.getValue().symbol) && e.getValue().pairAsset.second.equals(allowedSecondAsset))
+                .filter(e -> commonSymbols.contains(e.getValue().symbol)
+                        && e.getValue().pairAsset.second.equals(allowedSecondAsset)
+                        && Double.compare(Double.parseDouble(e.getValue().vol24h), Double.parseDouble(liquidityFilter)) >= 0)
                 .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
     }
 
-    public static ArrayList<ArbChain> genArbChains(HashMap<String, Ticker> OKXtickers, HashMap<String, Ticker> binanceTickers) {
+    public static ArrayList<ArbChain> genArbChains() {
         ArrayList<ArbChain> arbChains = new ArrayList<>();
         OKXtickers.forEach((key, OKXticker) -> {
             Ticker binanceTicker = binanceTickers.get(key);
@@ -186,35 +235,12 @@ public class Main {
         }
     }
 
+//    public static MainService getInstance() throws IOException, ParseException {
+//        updateInstance();
+//        return new MainService();
+//    }
+
     public static void main(String[] args) throws IOException, ParseException {
-        System.out.println("OKX parsing started.");
-        Instant timeMeasureStart = Instant.now();
-        HashMap<String, Ticker> OKXtickers = tickersToHashMap(getOKXtickers());
-        Instant timeMeasureEnd = Instant.now();
-        System.out.println("OKX parsing finished. Elapsed time: " + Duration.between(timeMeasureStart, timeMeasureEnd).toMillis() + " ms.");
-//        OKXtickers.forEach((symbol, ticker) -> System.out.println(ticker));
-
-        System.out.println("Binance parsing started.");
-        timeMeasureStart = Instant.now();
-        HashMap<String, PairAsset> binanceSymbolsMapping = genBinanceSymbolsMapping();
-        HashMap<String, Ticker> binanceTickers = tickersToHashMap(getBinanceTickers(binanceSymbolsMapping));
-        timeMeasureEnd = Instant.now();
-        System.out.println("Binance parsing finished. Elapsed time: " + Duration.between(timeMeasureStart, timeMeasureEnd).toMillis() + " ms.");
-//        binanceTickers.forEach((symbol, ticker) -> System.out.println(ticker));
-
-        Set<String> commonSymbols = genMergedSymbolList(OKXtickers, binanceTickers);
-//        commonSymbols.forEach(System.out::println);
-
-        String allowedSecondAsset = "USDT";
-        timeMeasureStart = Instant.now();
-        binanceTickers = new HashMap<>(filterTickersMap(binanceTickers, commonSymbols, allowedSecondAsset));
-        OKXtickers = new HashMap<>(filterTickersMap(OKXtickers, commonSymbols, allowedSecondAsset));
-        timeMeasureEnd = Instant.now();
-        System.out.println("Filtered tickers maps for " + Duration.between(timeMeasureStart, timeMeasureEnd).toMillis() + " ms.");
-//        System.out.println(binanceTickers.size() + ", " + OKXtickers.size());
-
-        ArrayList<ArbChain> arbChains = genArbChains(OKXtickers, binanceTickers);
-        arbChains.sort(new ArbChainComparator());
-        arbChains.forEach(System.out::println);
+        updateInstance();
     }
 }
