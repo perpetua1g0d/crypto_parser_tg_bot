@@ -14,6 +14,7 @@ import org.telegram.telegrambots.updatesreceivers.DefaultBotSession;
 
 import java.io.*;
 import java.nio.charset.StandardCharsets;
+import java.text.DecimalFormat;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Optional;
@@ -86,16 +87,26 @@ public class CryptoExchangesParserBot extends TelegramLongPollingBot {
         }
     }
 
+    private static String eraseTrailingZero(String s) {
+        return s.contains(".") ? s.replaceAll("0*$","").replaceAll("\\.$","") : s;
+    }
+
+    private static String myFormatDouble(String s, DecimalFormat formatter) {
+//        return formatter.format(Double.parseDouble(eraseTrailingZero(s)));
+        return eraseTrailingZero(s);
+    }
+
     private static String arbChainToTextSignal(ArbChain arbChain) {
         Ticker tickerFrom = arbChain.tickerFrom;
         Ticker tickerTo = arbChain.tickerTo;
 
+        DecimalFormat formatter = new DecimalFormat("#,###.00");
         return "💎" + tickerFrom.pairAsset.first + "/" + tickerFrom.pairAsset.second
-                + " (профит: " + String.format("%.2f", Double.parseDouble(arbChain.profit)) + "%)" + "\n"
-                + "📉Купить на: " + arbChain.exFrom + " по цене: " + tickerFrom.lastPrice + "$\n"
-                + "💰Объем 24ч: " + tickerFrom.vol24h + "$\n"
-                + "📈Продать на: " + arbChain.exTo + " по цене: " + tickerTo.lastPrice + "$\n"
-                + "💰Объем 24ч: " + tickerTo.vol24h + "$\n";
+                + " (профит: " + String.format("%,.2f", Double.parseDouble(myFormatDouble(arbChain.profit, formatter))) + "%)" + "\n"
+                + "📉Купить на: " + arbChain.exFrom + " по цене: " + myFormatDouble(tickerFrom.lastPrice, formatter) + "$\n"
+                + "💰Объем 24ч: " + String.format("%,.0f", Double.parseDouble(myFormatDouble(tickerFrom.vol24h, formatter))) + "$\n"
+                + "📈Продать на: " + arbChain.exTo + " по цене: " + myFormatDouble(tickerTo.lastPrice, formatter) + "$\n"
+                + "💰Объем 24ч: " + String.format("%,.0f", Double.parseDouble(myFormatDouble(tickerTo.vol24h, formatter)) )+ "$\n";
     }
 
     private void handleMessage(Message message) throws TelegramApiException, IOException, ParseException {
