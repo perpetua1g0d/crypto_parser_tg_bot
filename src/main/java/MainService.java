@@ -70,13 +70,13 @@ public class MainService {
         unfilteredArbChains.sort(new ArbChainComparator());
 
         commonSymbols = genFilteredMergedBaseAssetList();
-//        commonSymbols.forEach(System.out::println);
 
         binanceTickers = new HashMap<>(filterTickersMap(binanceTickers, commonSymbols));
         OKXtickers = new HashMap<>(filterTickersMap(OKXtickers, commonSymbols));
 
         arbChains = genArbChains();
         arbChains.sort(new ArbChainComparator());
+//        arbChains.forEach(System.out::println);
     }
 
     private ArrayList<ArbChain> genArbChainsUnfiltered(HashMap<String, Ticker> unfilteredBinanceTickers,
@@ -191,7 +191,7 @@ public class MainService {
             String symbol = (String) cur.get("symbol");
             PairAsset mapped = mapBinanceSymbol(mapping, symbol);
 
-            tickers.add(new BinanceTicker(symbol, mapped, (String) cur.get("lastPrice"), (String) cur.get("volume")));
+            tickers.add(new BinanceTicker(symbol, mapped, (String) cur.get("lastPrice"), (String) cur.get("quoteVolume")));
         }
 
         return tickers;
@@ -222,7 +222,7 @@ public class MainService {
                         (quoteAssetFilter.length() == 0 || e.getValue().pairAsset.second.equals(quoteAssetFilter))
                         && Double.compare(Double.parseDouble(e.getValue().vol24h), Double.parseDouble(liquidityFilter)) >= 0
                         && binanceTickers.containsKey(e.getKey())
-                        && allowedBaseAssetsSet.contains(e.getKey()))
+                        && allowedBaseAssetsSet.contains(e.getValue().pairAsset.first))
                 .map(Map.Entry::getKey)
                 .collect(Collectors.toSet());
     }
