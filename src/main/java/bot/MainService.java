@@ -1,3 +1,5 @@
+package bot;
+
 import org.apache.http.HttpEntity;
 import org.apache.http.client.methods.CloseableHttpResponse;
 import org.apache.http.client.methods.HttpGet;
@@ -21,8 +23,6 @@ public class MainService {
     private static Set<String> allowedBaseAssetsSet = null;
     private static HashMap<String, Ticker> OKXtickers = null;
     private static HashMap<String, Ticker> binanceTickers = null;
-    private static ArrayList<ArbChain> arbChains = null;
-    private static ArrayList<ArbChain> unfilteredArbChains = null;
     private static Set<String> commonSymbols = null;
 
     public void setLiquidityFilter(String newLiquidityFilter) {
@@ -37,7 +37,37 @@ public class MainService {
         allowedBaseAssetsSet = new HashSet<>(newAllowedBaseAssetsList);
     }
 
+    public String getLiquidityFilter() {
+        return liquidityFilter;
+    }
+
+    private static class ArbChainComparator implements Comparator<ArbChain> {
+
+        @Override
+        public int compare(ArbChain ac1, ArbChain ac2) {
+            return Double.compare(Double.parseDouble(ac2.profit), Double.parseDouble(ac1.profit));
+        }
+    }
+
     public ArrayList<ArbChain> getArbChains() {
+        if (binanceTickers == null || OKXtickers == null || commonSymbols == null)
+            return null;
+
+        HashMap<String, Ticker> filteredBinanceTickers = new HashMap<>(filterTickersMap(binanceTickers, commonSymbols));
+        HashMap<String, Ticker> filteredOKXtickers = new HashMap<>(filterTickersMap(OKXtickers, commonSymbols));
+        ArrayList<ArbChain> arbChains = genArbChains(filteredOKXtickers, filteredBinanceTickers);
+        arbChains.sort(new ArbChainComparator());
+
+        return arbChains;
+    }
+
+    public ArrayList<ArbChain> getUnfilteredArbChains() {
+        if (binanceTickers == null || OKXtickers == null)
+            return null;
+
+        ArrayList<ArbChain> arbChains = genArbChains(OKXtickers, binanceTickers);
+        arbChains.sort(new ArbChainComparator());
+
         return arbChains;
     }
 
@@ -63,44 +93,9 @@ public class MainService {
         timeMeasureEnd = Instant.now();
         System.out.println("Binance parsing finished. Elapsed time: " + Duration.between(timeMeasureStart, timeMeasureEnd).toMillis() + " ms.");
 
-        Set<String> unfilteredCommonSymbols = OKXtickers.keySet().stream()
-                .filter(binanceTickers::containsKey).collect(Collectors.toSet());
-        unfilteredArbChains = genArbChainsUnfiltered(new HashMap<>(filterTickersMap(OKXtickers, unfilteredCommonSymbols)),
-                new HashMap<>(filterTickersMap(binanceTickers, unfilteredCommonSymbols)));
-        unfilteredArbChains.sort(new ArbChainComparator());
-
-        commonSymbols = genFilteredMergedBaseAssetList();
-
-        binanceTickers = new HashMap<>(filterTickersMap(binanceTickers, commonSymbols));
-        OKXtickers = new HashMap<>(filterTickersMap(OKXtickers, commonSymbols));
-
-        arbChains = genArbChains();
-        arbChains.sort(new ArbChainComparator());
-//        arbChains.forEach(System.out::println);
-    }
-
-    private ArrayList<ArbChain> genArbChainsUnfiltered(HashMap<String, Ticker> unfilteredBinanceTickers,
-                                                      HashMap<String, Ticker> unfilteredOKXTickers) {
-        ArrayList<ArbChain> unfilteredArbChains = new ArrayList<>();
-        unfilteredOKXTickers.forEach((key, OKXticker) -> {
-            Ticker binanceTicker = unfilteredBinanceTickers.get(key);
-            double OKXprice = Double.parseDouble(OKXticker.lastPrice);
-            double binancePrice = Double.parseDouble(binanceTicker.lastPrice);
-            if (Double.compare(OKXprice, 0) == 0 || Double.compare(binancePrice, 0) == 0)
-                return;
-
-            if (OKXprice < binancePrice) {
-                unfilteredArbChains.add(new ArbChain(Double.toString(100 * (binancePrice - OKXprice) / binancePrice), "OKX", "Binance", OKXticker, binanceTicker));
-            } else {
-                unfilteredArbChains.add(new ArbChain(Double.toString(100 * (OKXprice - binancePrice) / OKXprice), "Binance", "OKX", binanceTicker, OKXticker));
-            }
-        });
-
-        return unfilteredArbChains;
-    }
-
-    public ArrayList<ArbChain> getUnfilteredArbChains() {
-        return unfilteredArbChains;
+        commonSymbols = genMergedBaseAssetSet();
+        binanceTickers = new HashMap<>(filterMatch(binanceTickers, commonSymbols));
+        OKXtickers = new HashMap<>(filterMatch(OKXtickers, commonSymbols));
     }
 
     private ArrayList<OKXticker> genOKXtickers() throws IOException, ParseException {
@@ -203,37 +198,58 @@ public class MainService {
         return tickersMap;
     }
 
-    private Set<String> genMergedBaseAssetList() {
-        return OKXtickers.entrySet().stream()
-                .filter(e ->
-                        (quoteAssetFilter.length() == 0 || e.getValue().pairAsset.second.equals(quoteAssetFilter))
-                        && Double.compare(Double.parseDouble(e.getValue().vol24h), Double.parseDouble(liquidityFilter)) >= 0
-                        && binanceTickers.containsKey(e.getKey()))
-                .map(Map.Entry::getKey)
+    private Set<String> genMergedBaseAssetSet() {
+        return OKXtickers.keySet().stream()
+                .filter(ticker -> binanceTickers.containsKey(ticker))
                 .collect(Collectors.toSet());
     }
 
-    private Set<String> genFilteredMergedBaseAssetList() {
-        if (allowedBaseAssetsSet == null)
-            return genMergedBaseAssetList();
+    private Set<String> symbolsQuoteFilter(Set<String> mergedSymbols, String filter) {
+        if (filter.length() == 0)
+            return mergedSymbols;
 
-        return OKXtickers.entrySet().stream()
-                .filter(e ->
-                        (quoteAssetFilter.length() == 0 || e.getValue().pairAsset.second.equals(quoteAssetFilter))
-                        && Double.compare(Double.parseDouble(e.getValue().vol24h), Double.parseDouble(liquidityFilter)) >= 0
-                        && binanceTickers.containsKey(e.getKey())
-                        && allowedBaseAssetsSet.contains(e.getValue().pairAsset.first))
-                .map(Map.Entry::getKey)
+        return mergedSymbols.stream()
+                .filter(symbol -> binanceTickers.get(symbol).pairAsset.second.equals(filter)
+                && OKXtickers.get(symbol).pairAsset.second.equals(filter))
                 .collect(Collectors.toSet());
     }
 
-    private static Map<String, Ticker> filterTickersMap(Map<String, Ticker> tickers, Set<String> commonSymbols) {
+    private Set<String> symbolsLiquidityFilter(Set<String> mergedSymbols, String filter) {
+        return mergedSymbols.stream()
+                .filter(symbol ->
+                        Double.compare(Double.parseDouble(binanceTickers.get(symbol).vol24h), Double.parseDouble(filter)) >= 0
+                        && Double.compare(Double.parseDouble(OKXtickers.get(symbol).vol24h), Double.parseDouble(filter)) >= 0)
+                .collect(Collectors.toSet());
+    }
+
+    private Set<String> symbolsAssetFilter(Set<String> mergedSymbols, Set<String> filter) {
+        if (filter == null || filter.isEmpty())
+            return mergedSymbols;
+
+        assert(binanceTickers.size() == OKXtickers.size());
+        // assumed that binanceTickers.get(symbol).pairAsset.first == OKX.first
+        return mergedSymbols.stream()
+                .filter(symbol -> filter.contains(binanceTickers.get(symbol).pairAsset.first))
+                .collect(Collectors.toSet());
+    }
+    
+    private Map<String, Ticker> filterMatch(Map<String, Ticker> tickers, Set<String> symbols) {
         return tickers.entrySet().stream()
-                .filter(e -> commonSymbols.contains(e.getValue().symbol))
+                .filter(e -> symbols.contains(e.getValue().symbol))
                 .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
     }
 
-    private ArrayList<ArbChain> genArbChains() {
+    private Map<String, Ticker> filterTickersMap(Map<String, Ticker> tickers, Set<String> symbols) {
+        symbols = symbolsAssetFilter(symbols, allowedBaseAssetsSet);
+        symbols = symbolsQuoteFilter(symbols, quoteAssetFilter);
+        symbols = symbolsLiquidityFilter(symbols, liquidityFilter);
+        Set<String> finalSymbols = symbols;
+        return tickers.entrySet().stream()
+                .filter(e -> finalSymbols.contains(e.getValue().symbol))
+                .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+    }
+
+    private ArrayList<ArbChain> genArbChains(Map<String, Ticker> OKXtickers, Map<String, Ticker> binanceTickers) {
         ArrayList<ArbChain> arbChains = new ArrayList<>();
         OKXtickers.forEach((key, OKXticker) -> {
             Ticker binanceTicker = binanceTickers.get(key);
@@ -249,15 +265,8 @@ public class MainService {
             }
         });
 
+
         return arbChains;
-    }
-
-    private static class ArbChainComparator implements Comparator<ArbChain> {
-
-        @Override
-        public int compare(ArbChain ac1, ArbChain ac2) {
-            return Double.compare(Double.parseDouble(ac2.profit), Double.parseDouble(ac1.profit));
-        }
     }
 
 //    public static void main(String[] args) throws IOException, ParseException {

@@ -1,4 +1,5 @@
-import org.checkerframework.checker.units.qual.A;
+package bot;
+
 import org.json.simple.JSONObject;
 import org.json.simple.parser.JSONParser;
 import org.json.simple.parser.ParseException;
@@ -14,38 +15,61 @@ import org.telegram.telegrambots.updatesreceivers.DefaultBotSession;
 
 import java.io.*;
 import java.nio.charset.StandardCharsets;
-import java.text.DecimalFormat;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Optional;
+import java.util.*;
 
 
 public class CryptoExchangesParserBot extends TelegramLongPollingBot {
-    private static final MainService mainService = MainService.getInstance();
-    private static boolean loggedIn = false;
-    private static String botPassword = null;
+    public static final MainService mainService = MainService.getInstance();
+    private static String botConfigPath = null;
+    private static String botConfigName = null;
     private static String botUsername = null;
     private static String botToken = null;
+    private static String botPassword = null;
     private static String pathToArbChains = null;
+    private static boolean botLoggedIn = false;
+    private static String botChatId = "638273225";
+    private static int botAutoUpdateSeconds = 0;
+    private static int topChainsCount = 0;
 
-    private void setBotSettings() {
-        try(InputStream in = Thread.currentThread().getContextClassLoader().getResourceAsStream("bot_config.json")){
+    private void setBotConfigPath() {
+        try(InputStream in = Thread.currentThread().getContextClassLoader().getResourceAsStream("path_config.json")){
             JSONParser jsonParser = new JSONParser();
             assert in != null;
             JSONObject data = (JSONObject) jsonParser.parse(new InputStreamReader(in, StandardCharsets.UTF_8));
-            botUsername = (String) data.get("bot_username");
-            botToken = (String) data.get("bot_token");
-            loggedIn = !Boolean.parseBoolean((String) data.get("bot_need_auth"));
-            botPassword = (String) data.get("bot_password");
-            pathToArbChains = (String) data.get("path_to_arb_chains") + "arb_chains.txt";
-        }
-        catch(Exception e){
+            botConfigPath = (String) data.get("bot_config_path");
+            botConfigName = (String) data.get("bot_config_name");
+        } catch(Exception e) {
             throw new RuntimeException(e);
         }
     }
 
+    private void setBotSettings() {
+        try(InputStream in = new FileInputStream(botConfigPath + botConfigName)){
+            JSONParser jsonParser = new JSONParser();
+            JSONObject data = (JSONObject) jsonParser.parse(new InputStreamReader(in, StandardCharsets.UTF_8));
+            botUsername = (String) data.get("bot_username");
+            botToken = (String) data.get("bot_token");
+            botChatId = (String) data.get("bot_chat_id");
+            botLoggedIn = !Boolean.parseBoolean(String.valueOf(data.get("bot_need_auth")));
+            botPassword = (String) data.get("bot_password");
+            topChainsCount = Integer.parseInt(String.valueOf(data.get("top_arb_chains_count")));
+            botAutoUpdateSeconds = Integer.parseInt(String.valueOf(data.get("bot_auto_update_seconds")));
+            mainService.setLiquidityFilter(String.valueOf(data.get("filter_liquidity")));
+            mainService.setQuoteAssetFilter(String.valueOf(data.get("filter_pair_to")));
+            pathToArbChains = data.get("path_to_arb_chains") + "arb_chains.txt";
+        }
+        catch(Exception e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    public String getChatId() {
+        return botChatId;
+    }
+
     public CryptoExchangesParserBot(DefaultBotOptions options) {
         super(options);
+        setBotConfigPath();
         setBotSettings();
     }
 
@@ -91,22 +115,28 @@ public class CryptoExchangesParserBot extends TelegramLongPollingBot {
         return s.contains(".") ? s.replaceAll("0*$","").replaceAll("\\.$","") : s;
     }
 
-    private static String myFormatDouble(String s, DecimalFormat formatter) {
-//        return formatter.format(Double.parseDouble(eraseTrailingZero(s)));
-        return eraseTrailingZero(s);
-    }
-
     private static String arbChainToTextSignal(ArbChain arbChain) {
         Ticker tickerFrom = arbChain.tickerFrom;
         Ticker tickerTo = arbChain.tickerTo;
 
-        DecimalFormat formatter = new DecimalFormat("#,###.00");
         return "💎" + tickerFrom.pairAsset.first + "/" + tickerFrom.pairAsset.second
-                + " (профит: " + String.format("%,.2f", Double.parseDouble(myFormatDouble(arbChain.profit, formatter))) + "%)" + "\n"
-                + "📉Купить на: " + arbChain.exFrom + " по цене: " + myFormatDouble(tickerFrom.lastPrice, formatter) + "$\n"
-                + "💰Объем 24ч: " + String.format("%,.0f", Double.parseDouble(myFormatDouble(tickerFrom.vol24h, formatter))) + "$\n"
-                + "📈Продать на: " + arbChain.exTo + " по цене: " + myFormatDouble(tickerTo.lastPrice, formatter) + "$\n"
-                + "💰Объем 24ч: " + String.format("%,.0f", Double.parseDouble(myFormatDouble(tickerTo.vol24h, formatter)) )+ "$\n";
+                + " (профит: " + String.format("%,.2f", Double.parseDouble(eraseTrailingZero(arbChain.profit))) + "%)" + "\n"
+                + "📉Купить на: " + arbChain.exFrom + " по цене: " + eraseTrailingZero(tickerFrom.lastPrice) + "$\n"
+                + "💰Объем 24ч: " + String.format("%,.0f", Double.parseDouble(eraseTrailingZero(tickerFrom.vol24h))) + "$\n"
+                + "📈Продать на: " + arbChain.exTo + " по цене: " + eraseTrailingZero(tickerTo.lastPrice) + "$\n"
+                + "💰Объем 24ч: " + String.format("%,.0f", Double.parseDouble(eraseTrailingZero(tickerTo.vol24h)) )+ "$\n";
+    }
+    
+    public void sendYourTopArbChains() throws TelegramApiException {
+        ArrayList<ArbChain> arbChains = mainService.getArbChains();
+        if (arbChains == null || arbChains.isEmpty()) {
+            botSendMessage("Нет данных.", botChatId);
+            return;
+        }
+
+        for (int i = 0; i < Math.min(arbChains.size(), topChainsCount); ++i) {
+            botSendMessage(arbChainToTextSignal(arbChains.get(i)), botChatId);
+        }
     }
 
     private void handleMessage(Message message) throws TelegramApiException, IOException, ParseException {
@@ -117,6 +147,10 @@ public class CryptoExchangesParserBot extends TelegramLongPollingBot {
                 String command = message.getText().substring(commonEntity.get().getOffset(), commonEntity.get().getLength());
                 ArrayList<String> textList = new ArrayList<>();
                 ArrayList<ArbChain> arbChains = new ArrayList<>();
+                if (!botLoggedIn && !(command.equals("/password") || command.equals("/reload_settings"))) {
+                    botSendMessage("Сначала введите пароль от бота.", botChatId);
+                    return;
+                }
                 switch (command) {
                     case "/password" -> {
                         String pass = message.getText().substring(commonEntity.get().getOffset() + commonEntity.get().getLength() + 1);
@@ -124,102 +158,93 @@ public class CryptoExchangesParserBot extends TelegramLongPollingBot {
                         if (!pass.equals(botPassword)) {
                             loginResult = "Пароль неверный.";
                         } else {
-                            loggedIn = true;
+                            botLoggedIn = true;
                             loginResult = "Авторизация пройдена.";
                         }
-                        botSendMessage(loginResult, message.getChatId().toString());
+                        botSendMessage(loginResult, botChatId);
                     }
                     case "/set_filter_pair_to" -> {
-                        if (!loggedIn) {
-                            botSendMessage("Сначала введите пароль от бота.", message.getChatId().toString());
-                            return;
-                        }
                         String filterPairTo = message.getText().substring(commonEntity.get().getOffset() + commonEntity.get().getLength() + 1);
                         mainService.setQuoteAssetFilter(filterPairTo);
-                        botSendMessage("Фильтр по второму активу в паре задан: " + filterPairTo, message.getChatId().toString());
+                        botSendMessage("Фильтр по второму активу в паре задан: " + filterPairTo, botChatId);
                     }
                     case "/set_filter_liquidity" -> {
-                        if (!loggedIn) {
-                            botSendMessage("Сначала введите пароль от бота.", message.getChatId().toString());
-                            return;
-                        }
                         String filterLiquidity = message.getText().substring(commonEntity.get().getOffset() + commonEntity.get().getLength() + 1);
                         mainService.setLiquidityFilter(filterLiquidity);
-                        botSendMessage("Фильтр по объему ликвидности задан: " + filterLiquidity + "$", message.getChatId().toString());
+                        botSendMessage("Фильтр по объему ликвидности задан: " + filterLiquidity + "$", botChatId);
                     }
                     case "/set_allowed_asset_list" -> {
-                        if (!loggedIn) {
-                            botSendMessage("Сначала введите пароль от бота.", message.getChatId().toString());
-                            return;
-                        }
                         String substring = message.getText().substring(commonEntity.get().getOffset() + commonEntity.get().getLength() + 1);
                         if (substring.isEmpty()) {
-                            botSendMessage("Список не может быть пустым.", message.getChatId().toString());
+                            botSendMessage("Список не может быть пустым.", botChatId);
                             return;
                         }
 
                         ArrayList<String> allowed_list = new ArrayList<>(Arrays.stream(substring.split(", ")).toList());
-//                        ArrayList<String> allowed_list = (ArrayList<String>) Arrays.stream(substring.split(",")).toList();
                         mainService.setAllowedBaseAssetsSet(allowed_list);
-                        botSendMessage("Список разрешенных базовых криптовалют установлен.", message.getChatId().toString());
+                        botSendMessage("Список разрешенных базовых криптовалют установлен.", botChatId);
                     }
                     case "/update" -> {
-                        if (!loggedIn) {
-                            botSendMessage("Сначала введите пароль от бота.", message.getChatId().toString());
-                            return;
-                        }
-                        botSendMessage("Данные обновляются...", message.getChatId().toString());
+                        botSendMessage("Данные обновляются...", botChatId);
                         mainService.updateInstance();
-                        botSendMessage("Все данные были обновлены.", message.getChatId().toString());
+                        botSendMessage("Все данные были обновлены.", botChatId);
                     }
                     case "/get_all_symbols" -> {
-                        if (!loggedIn) {
-                            botSendMessage("Сначала введите пароль от бота.", message.getChatId().toString());
-                            return;
-                        }
-                        botSendMessage("Все доступные пары: " + mainService.getCommonSymbols().toString(), message.getChatId().toString());
+                        botSendMessage("Все доступные пары: " + mainService.getCommonSymbols().toString(), botChatId);
                     }
                     case "/get_your_list_profit_message" -> {
-                        if (!loggedIn) {
-                            botSendMessage("Сначала введите пароль от бота.", message.getChatId().toString());
-                            return;
-                        }
                         textList = new ArrayList<>();
                         ArrayList<String> finalTextList = textList;
                         mainService.getArbChains().forEach(arbChain -> finalTextList.add(arbChainToTextSignal(arbChain)));
                         writeUsingFileWriter(textList);
-                        botSendMessage("Связки записаны в файл " + pathToArbChains, message.getChatId().toString());
+                        botSendMessage("Связки записаны в файл " + pathToArbChains, botChatId);
                     }
-                    case "/get_your_top10_arb_chains" -> {
-                        if (!loggedIn) {
-                            botSendMessage("Сначала введите пароль от бота.", message.getChatId().toString());
-                            return;
-                        }
-                        arbChains = mainService.getArbChains();
-                        for (int i = 0; i < Math.min(arbChains.size(), 10); ++i) {
-                            botSendMessage(arbChainToTextSignal(arbChains.get(i)), message.getChatId().toString());
-                        }
+                    case "/get_your_top_arb_chains" -> {
+                        sendYourTopArbChains();
                     }
-                    case "/get_all_top10_arb_chains" -> {
-                        if (!loggedIn) {
-                            botSendMessage("Сначала введите пароль от бота.", message.getChatId().toString());
-                            return;
-                        }
+                    case "/get_all_top_arb_chains" -> {
                         arbChains = mainService.getUnfilteredArbChains();
-                        for (int i = 0; i < Math.min(arbChains.size(), 10); ++i) {
-                            botSendMessage(arbChainToTextSignal(arbChains.get(i)), message.getChatId().toString());
+                        for (int i = 0; i < Math.min(arbChains.size(), topChainsCount); ++i) {
+                            botSendMessage(arbChainToTextSignal(arbChains.get(i)), botChatId);
                         }
                     }
-                    default -> botSendMessage("Бот не может прочитать данную команду.", message.getChatId().toString());
+                    case "/reload_settings" -> {
+                        setBotSettings();
+                        botSendMessage("Настройки обновились.", botChatId);
+                    }
+                    default -> botSendMessage("Бот не может прочитать данную команду.", botChatId);
                 }
             }
         }
     }
 
-    public static void main(String[] args) throws TelegramApiException, IOException, ParseException {
+    private static class MyTask extends TimerTask {
+        private static CryptoExchangesParserBot bot;
+
+        public MyTask(CryptoExchangesParserBot bot) {
+            MyTask.bot = bot;
+        }
+
+        @Override
+        public void run() {
+            try {
+                bot.sendYourTopArbChains();
+//                bot.execute(SendMessage.builder().chatId(botChatId).text("Текущий фильтр ликвидности: " + mainService.getLiquidityFilter()).build());
+            } catch (TelegramApiException e) {
+                throw new RuntimeException(e);
+            }
+        }
+
+    }
+
+    public static void main(String[] args) throws TelegramApiException {
         CryptoExchangesParserBot bot = new CryptoExchangesParserBot(new DefaultBotOptions());
         TelegramBotsApi telegramBotsApi = new TelegramBotsApi(DefaultBotSession.class);
         telegramBotsApi.registerBot(bot);
-//        bot.execute(SendMessage.builder().chatId("638273225").text("Hello test message").build());
+        String botChatId = bot.getChatId();
+        bot.execute(SendMessage.builder().chatId(botChatId).text("Бот запущен.").build());
+        Timer t = new Timer();
+        MyTask mTask = new MyTask(bot);
+        t.scheduleAtFixedRate(mTask, 0, botAutoUpdateSeconds * 1000L);
     }
 }

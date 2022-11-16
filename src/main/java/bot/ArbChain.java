@@ -1,3 +1,5 @@
+package bot;
+
 import lombok.AllArgsConstructor;
 import lombok.ToString;
 

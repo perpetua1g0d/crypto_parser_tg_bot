@@ -1,4 +1,4 @@
-import lombok.ToString;
+package bot;
 
 public class BinanceTicker extends Ticker {
 

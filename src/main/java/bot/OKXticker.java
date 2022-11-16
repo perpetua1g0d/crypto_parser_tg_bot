@@ -1,3 +1,5 @@
+package bot;
+
 public class OKXticker extends Ticker{
 
     public OKXticker(String symbol, PairAsset pairAsset, String lastPrice, String volCcy24h) {
@@ -6,7 +8,7 @@ public class OKXticker extends Ticker{
 
     @Override
     public String toString() {
-        return "OKXticker{" +
+        return "bot.OKXticker{" +
                 "symbol='" + symbol + '\'' +
                 "pairAsset='" + pairAsset + '\'' +
                 ", lastPrice='" + lastPrice + '\'' +

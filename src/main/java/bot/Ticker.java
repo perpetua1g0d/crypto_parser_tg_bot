@@ -1,5 +1,6 @@
+package bot;
+
 import lombok.AllArgsConstructor;
-import lombok.ToString;
 
 @AllArgsConstructor
 public class Ticker {
@@ -10,7 +11,7 @@ public class Ticker {
 
     @Override
     public String toString() {
-        return "Ticker{" +
+        return "bot.Ticker{" +
                 "symbol='" + symbol + '\'' +
                 ", pairAsset=" + pairAsset +
                 ", lastPrice='" + lastPrice + '\'' +
