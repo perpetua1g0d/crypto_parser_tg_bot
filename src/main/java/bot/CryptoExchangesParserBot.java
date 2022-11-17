@@ -28,7 +28,7 @@ public class CryptoExchangesParserBot extends TelegramLongPollingBot {
     private static String pathToArbChains = null;
     private static boolean botLoggedIn = false;
     private static String botChatId = "638273225";
-    private static int botAutoUpdateSeconds = 0;
+    public static int botAutoUpdateSeconds = 0;
     private static int topChainsCount = 0;
 
     private void setBotConfigPath() {
@@ -139,6 +139,10 @@ public class CryptoExchangesParserBot extends TelegramLongPollingBot {
         }
     }
 
+    public void updateMainInstance() throws IOException, ParseException {
+        mainService.updateInstance();
+    }
+
     private void handleMessage(Message message) throws TelegramApiException, IOException, ParseException {
         if (message.hasText() && message.hasEntities()) {
             Optional<MessageEntity> commonEntity =
@@ -228,9 +232,11 @@ public class CryptoExchangesParserBot extends TelegramLongPollingBot {
         @Override
         public void run() {
             try {
+                bot.updateMainInstance();
                 bot.sendYourTopArbChains();
+//                System.out.println(botAutoUpdateSeconds);
 //                bot.execute(SendMessage.builder().chatId(botChatId).text("Текущий фильтр ликвидности: " + mainService.getLiquidityFilter()).build());
-            } catch (TelegramApiException e) {
+            } catch (TelegramApiException | IOException | ParseException e) {
                 throw new RuntimeException(e);
             }
         }
