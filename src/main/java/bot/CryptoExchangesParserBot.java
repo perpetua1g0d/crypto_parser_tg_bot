@@ -30,6 +30,7 @@ public class CryptoExchangesParserBot extends TelegramLongPollingBot {
     private static String botChatId = "638273225";
     public static int botAutoUpdateSeconds = 0;
     private static int topChainsCount = 0;
+    private static double profitFilter = 0;
 
     private void setBotConfigPath() {
         try(InputStream in = Thread.currentThread().getContextClassLoader().getResourceAsStream("path_config.json")){
@@ -52,8 +53,10 @@ public class CryptoExchangesParserBot extends TelegramLongPollingBot {
             botChatId = (String) data.get("bot_chat_id");
             botLoggedIn = !Boolean.parseBoolean(String.valueOf(data.get("bot_need_auth")));
             botPassword = (String) data.get("bot_password");
+            mainService.setBlackList(new ArrayList<>(Arrays.stream(((String) data.get("black_list")).split(", ")).toList()));
             topChainsCount = Integer.parseInt(String.valueOf(data.get("top_arb_chains_count")));
             botAutoUpdateSeconds = Integer.parseInt(String.valueOf(data.get("bot_auto_update_seconds")));
+            profitFilter = Double.parseDouble(String.valueOf(data.get("filter_profit")));
             mainService.setLiquidityFilter(String.valueOf(data.get("filter_liquidity")));
             mainService.setQuoteAssetFilter(String.valueOf(data.get("filter_pair_to")));
             pathToArbChains = data.get("path_to_arb_chains") + "arb_chains.txt";
@@ -135,7 +138,11 @@ public class CryptoExchangesParserBot extends TelegramLongPollingBot {
         }
 
         for (int i = 0; i < Math.min(arbChains.size(), topChainsCount); ++i) {
-            botSendMessage(arbChainToTextSignal(arbChains.get(i)), botChatId);
+            ArbChain arbChain = arbChains.get(i);
+            if (Double.compare(Double.parseDouble(arbChain.profit), profitFilter) < 0)
+                break;
+
+            botSendMessage(arbChainToTextSignal(arbChain), botChatId);
         }
     }
 
@@ -199,7 +206,9 @@ public class CryptoExchangesParserBot extends TelegramLongPollingBot {
                     case "/get_your_list_profit_message" -> {
                         textList = new ArrayList<>();
                         ArrayList<String> finalTextList = textList;
-                        mainService.getArbChains().forEach(arbChain -> finalTextList.add(arbChainToTextSignal(arbChain)));
+                        mainService.getArbChains().stream()
+                                .filter(arbChain -> Double.compare(Double.parseDouble(arbChain.profit), profitFilter) >= 0)
+                                .forEach(arbChain -> finalTextList.add(arbChainToTextSignal(arbChain)));
                         writeUsingFileWriter(textList);
                         botSendMessage("Связки записаны в файл " + pathToArbChains, botChatId);
                     }

@@ -21,6 +21,7 @@ public class MainService {
     private static String liquidityFilter = "0";
     private static String quoteAssetFilter = "USDT";
     private static Set<String> allowedBaseAssetsSet = null;
+    private static Set<String> blackListSet = null;
     private static HashMap<String, Ticker> OKXtickers = null;
     private static HashMap<String, Ticker> binanceTickers = null;
     private static Set<String> commonSymbols = null;
@@ -37,8 +38,8 @@ public class MainService {
         allowedBaseAssetsSet = new HashSet<>(newAllowedBaseAssetsList);
     }
 
-    public String getLiquidityFilter() {
-        return liquidityFilter;
+    public void setBlackList(ArrayList<String> blackListSet) {
+        MainService.blackListSet = new HashSet<>(blackListSet);
     }
 
     private static class ArbChainComparator implements Comparator<ArbChain> {
@@ -232,6 +233,16 @@ public class MainService {
                 .filter(symbol -> filter.contains(binanceTickers.get(symbol).pairAsset.first))
                 .collect(Collectors.toSet());
     }
+
+    private Set<String> symbolsBlackListFilter(Set<String> mergedSymbols, Set<String> filter) {
+        if (filter == null || filter.isEmpty())
+            return mergedSymbols;
+
+        assert(binanceTickers.size() == OKXtickers.size());
+        return mergedSymbols.stream()
+                .filter(symbol -> !filter.contains(binanceTickers.get(symbol).pairAsset.first))
+                .collect(Collectors.toSet());
+    }
     
     private Map<String, Ticker> filterMatch(Map<String, Ticker> tickers, Set<String> symbols) {
         return tickers.entrySet().stream()
@@ -241,6 +252,7 @@ public class MainService {
 
     private Map<String, Ticker> filterTickersMap(Map<String, Ticker> tickers, Set<String> symbols) {
         symbols = symbolsAssetFilter(symbols, allowedBaseAssetsSet);
+        symbols = symbolsBlackListFilter(symbols, blackListSet);
         symbols = symbolsQuoteFilter(symbols, quoteAssetFilter);
         symbols = symbolsLiquidityFilter(symbols, liquidityFilter);
         Set<String> finalSymbols = symbols;

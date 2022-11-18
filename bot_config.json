@@ -4,9 +4,11 @@
   "bot_chat_id": "638273225",
   "bot_need_auth": false,
   "bot_password": "Adkllu49.z1",
-  "bot_auto_update_seconds": 30,
+  "bot_auto_update_seconds": 10,
   "top_arb_chains_count": 3,
-  "filter_liquidity": 1000000,
+  "black_list": "MIR",
+  "filter_profit": 0.3,
+  "filter_liquidity": 100000,
   "filter_pair_to": "USDT",
   "path_to_arb_chains": "/home/alexey/prog/crypto_parser_tg_bot/"
 }
