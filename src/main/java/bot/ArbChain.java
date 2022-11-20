@@ -3,12 +3,12 @@ package bot;
 import lombok.AllArgsConstructor;
 import lombok.ToString;
 
+import java.util.List;
+
 @ToString
 @AllArgsConstructor
 public class ArbChain {
-    String profit;
-    String exFrom;
-    String exTo;
+    List<String> profit;
     Ticker tickerFrom;
-    Ticker tickerTo;
+    List<Ticker> tickerTo;
 }
