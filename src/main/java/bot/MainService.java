@@ -267,10 +267,10 @@ public class MainService {
             List<String> profit = new ArrayList<>();
             List<Ticker> tickerTo = new ArrayList<>();
 
-            Ticker topTicker = curTickers.get(0);
-            for (int i = curTickers.size() - 1; i > 0; --i) {
+            Ticker topTicker = curTickers.get(curTickers.size() - 1);
+            for (int i = 0; i < curTickers.size() - 1; ++i) {
                 Ticker curTicker = curTickers.get(i);
-                double curProfit = 100 * (Double.parseDouble(topTicker.lastPrice) - Double.parseDouble(curTicker.lastPrice)) / Double.parseDouble(topTicker.lastPrice);
+                double curProfit = 100 * (Double.parseDouble(curTicker.lastPrice) - Double.parseDouble(topTicker.lastPrice)) / Double.parseDouble(curTicker.lastPrice);
                 if (Double.compare(curProfit, Double.parseDouble(arbChainProfitFilter)) < 0)
                     break;
 
