@@ -15,15 +15,23 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
 
-public class BinanceTicker extends Ticker {
-    public String exName = "Binance";
-
-    public BinanceTicker(String exName, String symbol, PairAsset pairAsset, String lastPrice, String vol24h) {
-        super(exName, symbol, pairAsset, lastPrice, vol24h);
+public class BybitTicker extends Ticker{
+    public BybitTicker(String exName, String symbol, PairAsset pairAsset, String lastPrice, String vol) {
+        super(exName, symbol, pairAsset, lastPrice, vol);
     }
 
-    private static HashMap<String, PairAsset> genBinanceSymbolsMapping() throws IOException, ParseException {
-        HttpGet request = new HttpGet("https://api.binance.com/api/v1/exchangeInfo");
+    @Override
+    public String toString() {
+        return "bot.BybitTicker{" +
+                "symbol='" + symbol + '\'' +
+                "pairAsset='" + pairAsset + '\'' +
+                ", lastPrice='" + lastPrice + '\'' +
+                ", volCcy24h='" + vol24h + '\'' +
+                '}';
+    }
+
+    private static HashMap<String, PairAsset> genBybitSymbolsMapping() throws IOException, ParseException {
+        HttpGet request = new HttpGet("https://api-testnet.bybit.com/v2/public/symbols");
 
         String responseStr = null;
         try (CloseableHttpClient httpClient = HttpClients.createDefault();
@@ -35,16 +43,16 @@ public class BinanceTicker extends Ticker {
         }
 
         JSONParser jsonParser = new JSONParser();
-        JSONArray data = (JSONArray) ((JSONObject) jsonParser.parse(responseStr)).get("symbols");
+        JSONArray data = (JSONArray) ((JSONObject) jsonParser.parse(responseStr)).get("result");
 
         HashMap<String, PairAsset> mapping = new HashMap<>();
 
         for (Object dataItem : data) {
             JSONObject cur = (JSONObject) dataItem;
 
-            String symbol = (String) cur.get("symbol");
-            String assetFirst = (String) cur.get("baseAsset");
-            String assetSecond = (String) cur.get("quoteAsset");
+            String symbol = (String) cur.get("name");
+            String assetFirst = (String) cur.get("base_currency");
+            String assetSecond = (String) cur.get("quote_currency");
 
             mapping.put(symbol, new PairAsset(assetFirst, assetSecond));
         }
@@ -52,14 +60,14 @@ public class BinanceTicker extends Ticker {
         return mapping;
     }
 
-    private static PairAsset mapBinanceSymbol(HashMap<String, PairAsset> mapping, String symbol) {
+    private static PairAsset mapBybitSymbol(HashMap<String, PairAsset> mapping, String symbol) {
 //        if (!mapping.containsKey(symbol))
 //            System.out.println(symbol + " doesn't exist.");
         return mapping.get(symbol);
     }
 
-    public static ArrayList<BinanceTicker> genBinanceTickers() throws IOException, ParseException {
-        HttpGet request = new HttpGet("https://api.binance.com/api/v3/ticker/24hr");
+    public static ArrayList<BybitTicker> genBybitTickers() throws IOException, ParseException {
+        HttpGet request = new HttpGet("https://api-testnet.bybit.com/v2/public/tickers");
 
         String responseStr = null;
         try (CloseableHttpClient httpClient = HttpClients.createDefault();
@@ -71,17 +79,17 @@ public class BinanceTicker extends Ticker {
         }
 
         JSONParser jsonParser = new JSONParser();
-        JSONArray data = (JSONArray) jsonParser.parse(responseStr);
+        JSONArray data = (JSONArray) ((JSONObject) jsonParser.parse(responseStr)).get("result");
 
-        HashMap<String, PairAsset> mapping = genBinanceSymbolsMapping();
-        ArrayList<BinanceTicker> tickers = new ArrayList<>();
+        HashMap<String, PairAsset> mapping = genBybitSymbolsMapping();
+        ArrayList<BybitTicker> tickers = new ArrayList<>();
         for (Object dataItem : data) {
             JSONObject cur = (JSONObject) dataItem;
 
-            String symbol = (String) cur.get("symbol");
-            PairAsset mapped = mapBinanceSymbol(mapping, symbol);
+            String symbol = ((String) cur.get("symbol")).toUpperCase();
+            PairAsset mapped = mapBybitSymbol(mapping, symbol);
 
-            tickers.add(new BinanceTicker("Binance", symbol, mapped, (String) cur.get("lastPrice"), (String) cur.get("quoteVolume")));
+            tickers.add(new BybitTicker("Bybit", symbol, mapped, String.valueOf(cur.get("last_price")), String.valueOf(cur.get("turnover_24h"))));
         }
 
         return tickers;

@@ -30,7 +30,6 @@ public class CryptoExchangesParserBot extends TelegramLongPollingBot {
     private static String botChatId = "638273225";
     public static int botAutoUpdateSeconds = 0;
     private static int topChainsCount = 0;
-    private static double profitFilter = 0;
 
     private void setBotConfigPath() {
         try(InputStream in = Thread.currentThread().getContextClassLoader().getResourceAsStream("path_config.json")){
@@ -59,6 +58,7 @@ public class CryptoExchangesParserBot extends TelegramLongPollingBot {
             mainService.setArbChainProfitFilter(String.valueOf(data.get("filter_profit")));
             mainService.setLiquidityFilter(String.valueOf(data.get("filter_liquidity")));
             mainService.setQuoteAssetFilter(String.valueOf(data.get("filter_pair_to")));
+            mainService.setSubListMaxDim(Integer.parseInt(String.valueOf(data.get("signal_sell_ex_count"))) + 1);
             pathToArbChains = data.get("path_to_arb_chains") + "arb_chains.txt";
         }
         catch(Exception e) {

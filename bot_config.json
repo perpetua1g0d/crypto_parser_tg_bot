@@ -1,15 +1,15 @@
 {
   "bot_username": "@CryptoExchangesParserBot",
   "bot_token": "5776713944:AAHndXSbBCk-_G4OvJd_gKPPaun6DfH7g60",
-  "bot_chat_id": "638273225",
+  "bot_chat_id": "-795072009",
   "bot_need_auth": false,
   "bot_password": "Adkllu49.z1",
-  "bot_auto_update_seconds": 10,
+  "bot_auto_update_seconds": 30,
   "top_arb_chains_count": 3,
-  "black_list": "YFII",
-  "filter_profit": 0.1,
-  "filter_liquidity": 500000,
-  "filter_pair_to": "USDT",
-  "signal_sell_ex_count": 2,
+  "black_list": "",
+  "filter_profit": 0.15,
+  "filter_liquidity": 1000000,
+  "filter_pair_to": "",
+  "signal_sell_ex_count": 1,
   "path_to_arb_chains": "/home/alexey/prog/crypto_parser_tg_bot/"
 }

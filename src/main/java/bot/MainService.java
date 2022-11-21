@@ -27,8 +27,16 @@ public class MainService {
     private static HashMap<String, Ticker> OKXtickers = null;
     private static HashMap<String, Ticker> binanceTickers = null;
     private static HashMap<String, Ticker> huobiTickers = null;
-    private static List<HashMap<String, Ticker>> tickersList = null;
+    private static HashMap<String, Ticker> bybitTickers = null;
+    private static HashMap<String, Ticker> kucoinTickers = null;
+    private static HashMap<String, Ticker> gateTickers = null;
     private static Set<String> commonSymbols = null;
+    private static List<HashMap<String, Ticker>> tickersList = null;
+    private static int subListMaxDim = 0;
+
+    public void setSubListMaxDim(int newSubListMaxDim) {
+        subListMaxDim = newSubListMaxDim;
+    }
 
     public void setLiquidityFilter(String newLiquidityFilter) {
         liquidityFilter = newLiquidityFilter;
@@ -116,21 +124,21 @@ public class MainService {
     }
 
     private ArrayList<ArbChain> genArbChains(List<HashMap<String, Ticker>> tickersList, final boolean toFilter) {
-        return recursiveGenArbChains(tickersList, new ArrayList<>(), 0, 3, toFilter);
+        return recursiveGenArbChains(tickersList, new ArrayList<>(), 0, subListMaxDim, toFilter);
     }
 
     public void updateInstance() throws IOException, ParseException {
-        System.out.println("OKX parsing started.");
-        Instant timeMeasureStart = Instant.now();
-        OKXtickers = Ticker.tickersToHashMap(OKXticker.genOKXtickers());
-        Instant timeMeasureEnd = Instant.now();
-        System.out.println("OKX parsing finished. Elapsed time: " + Duration.between(timeMeasureStart, timeMeasureEnd).toMillis() + " ms.");
-
         System.out.println("Binance parsing started.");
-        timeMeasureStart = Instant.now();
+        Instant timeMeasureStart = Instant.now();
         binanceTickers = Ticker.tickersToHashMap(BinanceTicker.genBinanceTickers());
-        timeMeasureEnd = Instant.now();
+        Instant timeMeasureEnd = Instant.now();
         System.out.println("Binance parsing finished. Elapsed time: " + Duration.between(timeMeasureStart, timeMeasureEnd).toMillis() + " ms.");
+
+        System.out.println("OKX parsing started.");
+        timeMeasureStart = Instant.now();
+        OKXtickers = Ticker.tickersToHashMap(OKXticker.genOKXtickers());
+        timeMeasureEnd = Instant.now();
+        System.out.println("OKX parsing finished. Elapsed time: " + Duration.between(timeMeasureStart, timeMeasureEnd).toMillis() + " ms.");
 
         System.out.println("Huobi parsing started.");
         timeMeasureStart = Instant.now();
@@ -138,7 +146,25 @@ public class MainService {
         timeMeasureEnd = Instant.now();
         System.out.println("Huobi parsing finished. Elapsed time: " + Duration.between(timeMeasureStart, timeMeasureEnd).toMillis() + " ms.");
 
-        tickersList = new ArrayList<>(Arrays.asList(binanceTickers, OKXtickers, huobiTickers));
+        System.out.println("Bybit parsing started.");
+        timeMeasureStart = Instant.now();
+        bybitTickers = Ticker.tickersToHashMap(BybitTicker.genBybitTickers());
+        timeMeasureEnd = Instant.now();
+        System.out.println("Bybit parsing finished. Elapsed time: " + Duration.between(timeMeasureStart, timeMeasureEnd).toMillis() + " ms.");
+
+        System.out.println("Kucoin parsing started.");
+        timeMeasureStart = Instant.now();
+        kucoinTickers = Ticker.tickersToHashMap(KucoinTicker.genKucoinTickers());
+        timeMeasureEnd = Instant.now();
+        System.out.println("Kucoin parsing finished. Elapsed time: " + Duration.between(timeMeasureStart, timeMeasureEnd).toMillis() + " ms.");
+
+        System.out.println("Gate parsing started.");
+        timeMeasureStart = Instant.now();
+        gateTickers = Ticker.tickersToHashMap(GateTicker.genGateTickers());
+        timeMeasureEnd = Instant.now();
+        System.out.println("Gate parsing finished. Elapsed time: " + Duration.between(timeMeasureStart, timeMeasureEnd).toMillis() + " ms.");
+
+        tickersList = new ArrayList<>(Arrays.asList(binanceTickers, kucoinTickers, gateTickers));
     }
 
     private Set<String> genMergedBaseAssetSet(List<HashMap<String, Ticker>> tickersSubList) {
