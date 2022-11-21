@@ -53,8 +53,8 @@ public class BinanceTicker extends Ticker {
     }
 
     private static PairAsset mapBinanceSymbol(HashMap<String, PairAsset> mapping, String symbol) {
-        if (!mapping.containsKey(symbol))
-            System.out.println(symbol + " doesn't exist.");
+//        if (!mapping.containsKey(symbol))
+//            System.out.println(symbol + " doesn't exist.");
         return mapping.get(symbol);
     }
 

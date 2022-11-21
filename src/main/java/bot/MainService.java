@@ -69,18 +69,14 @@ public class MainService {
         if (tickersList == null || tickersList.isEmpty())
             return null;
 
-//        List<HashMap<String, Ticker>> filteredTickersList = new ArrayList<>(filterTickersList(commonSymbols, tickersList));
-        ArrayList<ArbChain> arbChains = genArbChains(tickersList);
+        ArrayList<ArbChain> arbChains = genArbChains(tickersList, true);
         arbChains.sort(new ArbChainComparator());
 
         return arbChains;
     }
 
     public ArrayList<ArbChain> getUnfilteredArbChains() {
-        if (binanceTickers == null || OKXtickers == null)
-            return null;
-
-        ArrayList<ArbChain> arbChains = genArbChains(tickersList);
+        ArrayList<ArbChain> arbChains = genArbChains(tickersList, false);
         arbChains.sort(new ArbChainComparator());
 
         return arbChains;
@@ -94,15 +90,17 @@ public class MainService {
         return new MainService();
     }
 
-    private ArrayList<ArbChain> recursiveGenArbChains(List<HashMap<String, Ticker>> tickersList, List<Integer> idxs, int curDim, final int dim) {
+    private ArrayList<ArbChain> recursiveGenArbChains(List<HashMap<String, Ticker>> tickersList, List<Integer> idxs, int curDim, final int dim, final boolean toFilter) {
         if (curDim == dim) {
             List<HashMap<String, Ticker>> subList = new ArrayList<>();
             List<HashMap<String, Ticker>> finalSubList = subList;
             idxs.forEach(idx -> finalSubList.add(tickersList.get(idx)));
-            commonSymbols = genMergedBaseAssetSet(finalSubList);
-            subList = new ArrayList<>(filterTickersList(commonSymbols, finalSubList));
-            subList = subList.stream().map(tickers -> new HashMap<>(filterMatch(tickers, commonSymbols))).toList();
-            commonSymbols = genMergedBaseAssetSet(subList);
+            commonSymbols = genMergedBaseAssetSet(subList); // contents: sublist = finalsublist
+            if (toFilter) {
+                subList = new ArrayList<>(filterTickersList(commonSymbols, finalSubList));
+                subList = subList.stream().map(tickers -> new HashMap<>(filterMatch(tickers, commonSymbols))).toList();
+                commonSymbols = genMergedBaseAssetSet(subList);
+            }
             return new ArrayList<>(genArbChainsSubList(subList, commonSymbols));
         }
 
@@ -110,27 +108,15 @@ public class MainService {
         int idx = idxs.isEmpty() ? -1 : idxs.get(idxs.size() - 1);
         for (int i = idx + 1; i < tickersList.size(); ++i) {
             idxs.add(i);
-            arbChains.addAll(recursiveGenArbChains(tickersList, idxs, curDim + 1, dim));
+            arbChains.addAll(recursiveGenArbChains(tickersList, idxs, curDim + 1, dim, toFilter));
             idxs.remove(idxs.size() - 1);
         }
 
         return arbChains;
     }
 
-    private ArrayList<ArbChain> genArbChains(List<HashMap<String, Ticker>> tickersList) {
-//        ArrayList<ArbChain> arbChains = new ArrayList<>();
-//        for (int i = 0; i < tickersList.size(); ++i) {
-//            for (int j = i + 1; j < tickersList.size(); ++j) {
-//                List<HashMap<String, Ticker>> subList = new ArrayList<>(Arrays.asList(tickersList.get(i), tickersList.get(j)));
-//                commonSymbols = genMergedBaseAssetSet(subList);
-//                subList = new ArrayList<>(filterTickersList(commonSymbols, subList));
-//                subList = subList.stream().map(tickers -> new HashMap<>(filterMatch(tickers, commonSymbols))).toList();
-//                commonSymbols = genMergedBaseAssetSet(subList);
-//                arbChains.addAll(genArbChainsSubList(subList, commonSymbols));
-//            }
-//        }
-
-        return recursiveGenArbChains(tickersList, new ArrayList<>(), 0, 2);
+    private ArrayList<ArbChain> genArbChains(List<HashMap<String, Ticker>> tickersList, final boolean toFilter) {
+        return recursiveGenArbChains(tickersList, new ArrayList<>(), 0, 3, toFilter);
     }
 
     public void updateInstance() throws IOException, ParseException {
@@ -145,7 +131,14 @@ public class MainService {
         binanceTickers = Ticker.tickersToHashMap(BinanceTicker.genBinanceTickers());
         timeMeasureEnd = Instant.now();
         System.out.println("Binance parsing finished. Elapsed time: " + Duration.between(timeMeasureStart, timeMeasureEnd).toMillis() + " ms.");
-        tickersList = new ArrayList<>(Arrays.asList(binanceTickers, OKXtickers));
+
+        System.out.println("Huobi parsing started.");
+        timeMeasureStart = Instant.now();
+        huobiTickers = Ticker.tickersToHashMap(HuobiTicker.genHuobiTickers());
+        timeMeasureEnd = Instant.now();
+        System.out.println("Huobi parsing finished. Elapsed time: " + Duration.between(timeMeasureStart, timeMeasureEnd).toMillis() + " ms.");
+
+        tickersList = new ArrayList<>(Arrays.asList(binanceTickers, OKXtickers, huobiTickers));
     }
 
     private Set<String> genMergedBaseAssetSet(List<HashMap<String, Ticker>> tickersSubList) {
@@ -249,7 +242,7 @@ public class MainService {
             List<Ticker> tickerTo = new ArrayList<>();
 
             Ticker topTicker = curTickers.get(0);
-            for (int i = 1; i < curTickers.size(); ++i) {
+            for (int i = curTickers.size() - 1; i > 0; --i) {
                 Ticker curTicker = curTickers.get(i);
                 double curProfit = 100 * (Double.parseDouble(topTicker.lastPrice) - Double.parseDouble(curTicker.lastPrice)) / Double.parseDouble(topTicker.lastPrice);
                 if (Double.compare(curProfit, Double.parseDouble(arbChainProfitFilter)) < 0)
