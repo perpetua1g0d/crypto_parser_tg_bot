@@ -164,7 +164,7 @@ public class MainService {
         timeMeasureEnd = Instant.now();
         System.out.println("Gate parsing finished. Elapsed time: " + Duration.between(timeMeasureStart, timeMeasureEnd).toMillis() + " ms.");
 
-        tickersList = new ArrayList<>(Arrays.asList(binanceTickers, kucoinTickers, gateTickers));
+        tickersList = new ArrayList<>(Arrays.asList(binanceTickers, OKXtickers, huobiTickers, bybitTickers, kucoinTickers, gateTickers));
     }
 
     private Set<String> genMergedBaseAssetSet(List<HashMap<String, Ticker>> tickersSubList) {
