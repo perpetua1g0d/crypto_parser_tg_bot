@@ -88,8 +88,10 @@ public class HuobiTicker extends Ticker{
 
             String symbol = ((String) cur.get("symbol")).toUpperCase();
             PairAsset mapped = mapHuobiSymbol(mapping, symbol);
+            if (mapped == null)
+                continue;
 
-            tickers.add(new HuobiTicker("Huobi", symbol, mapped, String.valueOf(cur.get("close")), String.valueOf(cur.get("vol"))));
+            tickers.add(new HuobiTicker("huobi", symbol, mapped, String.valueOf(cur.get("close")), String.valueOf(cur.get("vol"))));
         }
 
         return tickers;

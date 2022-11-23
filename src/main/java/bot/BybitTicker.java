@@ -88,8 +88,10 @@ public class BybitTicker extends Ticker{
 
             String symbol = ((String) cur.get("symbol")).toUpperCase();
             PairAsset mapped = mapBybitSymbol(mapping, symbol);
+            if (mapped == null)
+                continue;
 
-            tickers.add(new BybitTicker("Bybit", symbol, mapped, String.valueOf(cur.get("last_price")), String.valueOf(cur.get("turnover_24h"))));
+            tickers.add(new BybitTicker("bybit", symbol, mapped, String.valueOf(cur.get("last_price")), String.valueOf(cur.get("turnover_24h"))));
         }
 
         return tickers;

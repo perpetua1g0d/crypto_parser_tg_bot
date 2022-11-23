@@ -23,7 +23,8 @@ public class MainService {
     private static String quoteAssetFilter = "USDT";
     private static String arbChainProfitFilter = "0.0";
     private static Set<String> allowedBaseAssetsSet = null;
-    private static Set<String> blackListSet = null;
+    private static Set<String> commonBlackListSet = null;
+    private static Map<String, Set<String>> blackLists = null;
     private static HashMap<String, Ticker> OKXtickers = null;
     private static HashMap<String, Ticker> binanceTickers = null;
     private static HashMap<String, Ticker> huobiTickers = null;
@@ -54,8 +55,12 @@ public class MainService {
         allowedBaseAssetsSet = new HashSet<>(newAllowedBaseAssetsList);
     }
 
-    public void setBlackList(ArrayList<String> blackListSet) {
-        MainService.blackListSet = new HashSet<>(blackListSet);
+    public void setCommonBlackList(ArrayList<String> newCommonBlackListSet) {
+        commonBlackListSet = new HashSet<>(newCommonBlackListSet);
+    }
+
+    public void setBlackLists(Map<String, Set<String>> newBlackLists) {
+        blackLists = newBlackLists;
     }
 
     private static class ArbChainComparator implements Comparator<ArbChain> {
@@ -105,7 +110,7 @@ public class MainService {
             idxs.forEach(idx -> finalSubList.add(tickersList.get(idx)));
             commonSymbols = genMergedBaseAssetSet(subList); // contents: sublist = finalsublist
             if (toFilter) {
-                subList = new ArrayList<>(filterTickersList(commonSymbols, finalSubList));
+                subList = new ArrayList<>(filterTickersList(commonSymbols, subList));
                 subList = subList.stream().map(tickers -> new HashMap<>(filterMatch(tickers, commonSymbols))).toList();
                 commonSymbols = genMergedBaseAssetSet(subList);
             }
@@ -218,14 +223,22 @@ public class MainService {
         return mergedSymbols;
     }
 
-    private Set<String> symbolsBlackListFilter(Set<String> mergedSymbols, Set<String> filter, List<HashMap<String, Ticker>> tickersList) {
+    private Set<String> symbolsBlackListFilter(Set<String> mergedSymbols, Set<String> filter, Map<String, Set<String>> blackLists, List<HashMap<String, Ticker>> tickersList) {
         if (filter == null || filter.isEmpty())
             return mergedSymbols;
 
         for (int i = 0; i < tickersList.size(); ++i) {
+            Optional<Map.Entry<String, Ticker>> mapPairFirst = tickersList.get(i).entrySet().stream().findFirst();
+            if (mapPairFirst.isEmpty())
+                continue;
+
+            final String exName = mapPairFirst.get().getValue().exName;
             int finalI = i;
             mergedSymbols = mergedSymbols.stream()
-                    .filter(symbol -> !filter.contains(tickersList.get(finalI).get(symbol).pairAsset.first))
+                    .filter(symbol -> {
+                        final String assetFirst = tickersList.get(finalI).get(symbol).pairAsset.first;
+                        return !filter.contains(assetFirst) && !blackLists.get(exName).contains(assetFirst);
+                    })
                     .collect(Collectors.toSet());
         }
 
@@ -240,7 +253,7 @@ public class MainService {
 
     private List<HashMap<String, Ticker>> filterTickersList(Set<String> symbols, List<HashMap<String, Ticker>> tickersList) {
         symbols = symbolsAssetFilter(symbols, allowedBaseAssetsSet, tickersList);
-        symbols = symbolsBlackListFilter(symbols, blackListSet, tickersList);
+        symbols = symbolsBlackListFilter(symbols, commonBlackListSet, blackLists, tickersList);
         symbols = symbolsQuoteFilter(symbols, quoteAssetFilter, tickersList);
         symbols = symbolsLiquidityFilter(symbols, liquidityFilter, tickersList);
 

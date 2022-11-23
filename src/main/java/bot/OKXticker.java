@@ -54,7 +54,7 @@ public class OKXticker extends Ticker{
             String assetSecond = instId.substring(dashPos + 1);
             String lastPrice = (String) cur.get("last");
             String volCcy24h = (String) cur.get("volCcy24h");
-            tickers.add(new OKXticker("OKX", assetFirst + assetSecond, new PairAsset(assetFirst, assetSecond), lastPrice, volCcy24h));
+            tickers.add(new OKXticker("okx", assetFirst + assetSecond, new PairAsset(assetFirst, assetSecond), lastPrice, volCcy24h));
         }
 
         return tickers;

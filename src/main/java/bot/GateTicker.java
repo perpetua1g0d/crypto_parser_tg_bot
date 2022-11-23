@@ -54,7 +54,7 @@ public class GateTicker extends Ticker{
             String assetSecond = instId.substring(dashPos + 1);
             String lastPrice = (String) cur.get("last");
             String vol24 = (String) cur.get("quote_volume");
-            tickers.add(new GateTicker("Gate", assetFirst + assetSecond, new PairAsset(assetFirst, assetSecond), lastPrice, vol24));
+            tickers.add(new GateTicker("gate", assetFirst + assetSecond, new PairAsset(assetFirst, assetSecond), lastPrice, vol24));
         }
 
         return tickers;

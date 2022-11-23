@@ -6,10 +6,16 @@
   "bot_password": "Adkllu49.z1",
   "bot_auto_update_seconds": 30,
   "top_arb_chains_count": 3,
-  "black_list": "",
+  "common_black_list": "",
+  "binance_black_list": "",
+  "okx_black_list": "",
+  "huobi_black_list": "",
+  "bybit_black_list": "",
+  "kucoin_black_list": "",
+  "gate_black_list": "",
   "filter_profit": 0.15,
   "filter_liquidity": 1000000,
   "filter_pair_to": "",
-  "signal_sell_ex_count": 2,
+  "signal_sell_ex_count": 1,
   "path_to_arb_chains": "/home/alexey/prog/crypto_parser_tg_bot/"
 }

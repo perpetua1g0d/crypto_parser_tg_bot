@@ -16,6 +16,7 @@ import org.telegram.telegrambots.updatesreceivers.DefaultBotSession;
 import java.io.*;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
+import java.util.stream.Collectors;
 
 
 public class CryptoExchangesParserBot extends TelegramLongPollingBot {
@@ -27,7 +28,7 @@ public class CryptoExchangesParserBot extends TelegramLongPollingBot {
     private static String botPassword = null;
     private static String pathToArbChains = null;
     private static boolean botLoggedIn = false;
-    private static String botChatId = "638273225";
+    private static String botChatId = null;
     public static int botAutoUpdateSeconds = 0;
     private static int topChainsCount = 0;
 
@@ -43,6 +44,14 @@ public class CryptoExchangesParserBot extends TelegramLongPollingBot {
         }
     }
 
+    private void createBlackLists(JSONObject data) {
+        Map<String, Set<String>> blackLists = new HashMap<>();
+        List<String> exNames = new ArrayList<>(Arrays.asList("okx", "binance", "gate", "bybit", "huobi", "kucoin"));
+        exNames.forEach(exName -> blackLists.put(exName, Arrays.stream(((String) data.get(exName + "_black_list")).split(", "))
+                .collect(Collectors.toSet())));
+        mainService.setBlackLists(blackLists);
+    }
+
     private void setBotSettings() {
         try(InputStream in = new FileInputStream(botConfigPath + botConfigName)){
             JSONParser jsonParser = new JSONParser();
@@ -52,7 +61,8 @@ public class CryptoExchangesParserBot extends TelegramLongPollingBot {
             botChatId = (String) data.get("bot_chat_id");
             botLoggedIn = !Boolean.parseBoolean(String.valueOf(data.get("bot_need_auth")));
             botPassword = (String) data.get("bot_password");
-            mainService.setBlackList(new ArrayList<>(Arrays.stream(((String) data.get("black_list")).split(", ")).toList()));
+            mainService.setCommonBlackList(new ArrayList<>(Arrays.stream(((String) data.get("common_black_list")).split(", ")).toList()));
+            createBlackLists(data);
             topChainsCount = Integer.parseInt(String.valueOf(data.get("top_arb_chains_count")));
             botAutoUpdateSeconds = Integer.parseInt(String.valueOf(data.get("bot_auto_update_seconds")));
             mainService.setArbChainProfitFilter(String.valueOf(data.get("filter_profit")));
@@ -123,12 +133,12 @@ public class CryptoExchangesParserBot extends TelegramLongPollingBot {
         List<Ticker> tickerTo = arbChain.tickerTo;
 
         StringBuilder signal = new StringBuilder("💎" + tickerFrom.pairAsset.first + "/" + tickerFrom.pairAsset.second + "\n"
-                + "📉Купить на: " + tickerFrom.exName + " по цене: " + eraseTrailingZero(tickerFrom.lastPrice) + "$\n"
+                + "📉Купить на: " + tickerFrom.exName.toUpperCase() + " по цене: " + eraseTrailingZero(tickerFrom.lastPrice) + "$\n"
                 + "💰Объем 24ч: " + String.format("%,.0f", Double.parseDouble(eraseTrailingZero(tickerFrom.vol24h))) + "$\n");
 
         for (int i = 0; i < arbChain.profit.size(); ++i) {
             String cur = " (профит: " + String.format("%,.2f", Double.parseDouble(eraseTrailingZero(arbChain.profit.get(i)))) + "%)" + "\n"
-                    + "📈Продать на: " + arbChain.tickerTo.get(i).exName + " по цене: " + eraseTrailingZero(tickerTo.get(i).lastPrice) + "$\n"
+                    + "📈Продать на: " + arbChain.tickerTo.get(i).exName.toUpperCase() + " по цене: " + eraseTrailingZero(tickerTo.get(i).lastPrice) + "$\n"
                     + "💰Объем 24ч: " + String.format("%,.0f", Double.parseDouble(eraseTrailingZero(tickerTo.get(i).vol24h)) )+ "$\n";
             signal.append(cur);
         }

@@ -80,8 +80,10 @@ public class BinanceTicker extends Ticker {
 
             String symbol = (String) cur.get("symbol");
             PairAsset mapped = mapBinanceSymbol(mapping, symbol);
+            if (mapped == null)
+                continue;
 
-            tickers.add(new BinanceTicker("Binance", symbol, mapped, (String) cur.get("lastPrice"), (String) cur.get("quoteVolume")));
+            tickers.add(new BinanceTicker("binance", symbol, mapped, (String) cur.get("lastPrice"), (String) cur.get("quoteVolume")));
         }
 
         return tickers;

@@ -54,7 +54,7 @@ public class KucoinTicker extends Ticker{
             String assetSecond = instId.substring(dashPos + 1);
             String lastPrice = (String) cur.get("last");
             String vol24 = (String) cur.get("volValue");
-            tickers.add(new KucoinTicker("Kucoin", assetFirst + assetSecond, new PairAsset(assetFirst, assetSecond), lastPrice, vol24));
+            tickers.add(new KucoinTicker("kucoin", assetFirst + assetSecond, new PairAsset(assetFirst, assetSecond), lastPrice, vol24));
         }
 
         return tickers;
