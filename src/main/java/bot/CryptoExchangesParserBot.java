@@ -153,7 +153,7 @@ public class CryptoExchangesParserBot extends TelegramLongPollingBot {
             return;
         }
         if (arbChains.isEmpty()) {
-            botSendMessage("В данный момент нет доступных связок по заданным фильтрам.", botChatId);
+            System.out.println("В данный момент нет доступных связок по заданным фильтрам.");
             return;
         }
 
@@ -225,7 +225,7 @@ public class CryptoExchangesParserBot extends TelegramLongPollingBot {
                         mainService.getArbChains().forEach(arbChain -> finalTextList.add(arbChainToTextSignal(arbChain)));
 
                         if (textList.isEmpty()) {
-                            botSendMessage("В данный момент нет доступных связок по заданным фильтрам.", botChatId);
+                            System.out.println("В данный момент нет доступных связок по заданным фильтрам.");
                             return;
                         }
                         writeUsingFileWriter(textList);

@@ -297,7 +297,7 @@ public class MainService {
             arbChains.add(new ArbChain(profit, topTicker, tickerTo));
         });
 
-        return arbChains;
+        return arbChains.stream().distinct().collect(Collectors.toCollection(ArrayList::new));
     }
 
 //    public static void main(String[] args) throws IOException, ParseException {
