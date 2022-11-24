@@ -30,6 +30,13 @@ public class OKXticker extends Ticker{
                 '}';
     }
 
+    private static void stupidSleep() {
+        for (long i = 0; i < 2e9; ++i) {
+            i++;
+            --i;
+        }
+    }
+
     public static ArrayList<OKXticker> genOKXtickers() throws IOException, ParseException {
         HttpGet request = new HttpGet("https://www.okx.com/priapi/v5/market/tickers?t=1668155757120&instType=SPOT");
         String responseStr = null;
@@ -39,6 +46,10 @@ public class OKXticker extends Ticker{
             if (entity != null) {
                 responseStr = EntityUtils.toString(entity);
             }
+        } catch (IOException e) {
+            System.out.println("connection to OKX failed.\nretrying...");
+            stupidSleep();
+            return genOKXtickers();
         }
 
         JSONParser jsonParser = new JSONParser();

@@ -31,7 +31,7 @@ public class BybitTicker extends Ticker{
     }
 
     private static HashMap<String, PairAsset> genBybitSymbolsMapping() throws IOException, ParseException {
-        HttpGet request = new HttpGet("https://api-testnet.bybit.com/v2/public/symbols");
+        HttpGet request = new HttpGet("https://api.bybit.com/spot/v3/public/symbols");
 
         String responseStr = null;
         try (CloseableHttpClient httpClient = HttpClients.createDefault();
@@ -43,7 +43,7 @@ public class BybitTicker extends Ticker{
         }
 
         JSONParser jsonParser = new JSONParser();
-        JSONArray data = (JSONArray) ((JSONObject) jsonParser.parse(responseStr)).get("result");
+        JSONArray data = (JSONArray) ((JSONObject) ((JSONObject) jsonParser.parse(responseStr)).get("result")).get("list");
 
         HashMap<String, PairAsset> mapping = new HashMap<>();
 
@@ -51,8 +51,8 @@ public class BybitTicker extends Ticker{
             JSONObject cur = (JSONObject) dataItem;
 
             String symbol = (String) cur.get("name");
-            String assetFirst = (String) cur.get("base_currency");
-            String assetSecond = (String) cur.get("quote_currency");
+            String assetFirst = (String) cur.get("baseCoin");
+            String assetSecond = (String) cur.get("quoteCoin");
 
             mapping.put(symbol, new PairAsset(assetFirst, assetSecond));
         }
@@ -67,7 +67,7 @@ public class BybitTicker extends Ticker{
     }
 
     public static ArrayList<BybitTicker> genBybitTickers() throws IOException, ParseException {
-        HttpGet request = new HttpGet("https://api-testnet.bybit.com/v2/public/tickers");
+            HttpGet request = new HttpGet("https://api.bybit.com/v2/public/tickers");
 
         String responseStr = null;
         try (CloseableHttpClient httpClient = HttpClients.createDefault();

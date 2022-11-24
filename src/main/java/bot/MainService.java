@@ -129,6 +129,7 @@ public class MainService {
     }
 
     private ArrayList<ArbChain> genArbChains(List<HashMap<String, Ticker>> tickersList, final boolean toFilter) {
+        tickersList = tickersList.stream().filter(Objects::nonNull).toList();
         return recursiveGenArbChains(tickersList, new ArrayList<>(), 0, subListMaxDim, toFilter)
                 .stream().distinct().collect(Collectors.toCollection(ArrayList::new));
     }
