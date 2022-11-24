@@ -129,7 +129,8 @@ public class MainService {
     }
 
     private ArrayList<ArbChain> genArbChains(List<HashMap<String, Ticker>> tickersList, final boolean toFilter) {
-        return recursiveGenArbChains(tickersList, new ArrayList<>(), 0, subListMaxDim, toFilter);
+        return recursiveGenArbChains(tickersList, new ArrayList<>(), 0, subListMaxDim, toFilter)
+                .stream().distinct().collect(Collectors.toCollection(ArrayList::new));
     }
 
     public void updateInstance() throws IOException, ParseException {
@@ -297,7 +298,7 @@ public class MainService {
             arbChains.add(new ArbChain(profit, topTicker, tickerTo));
         });
 
-        return arbChains.stream().distinct().collect(Collectors.toCollection(ArrayList::new));
+        return arbChains;
     }
 
 //    public static void main(String[] args) throws IOException, ParseException {
