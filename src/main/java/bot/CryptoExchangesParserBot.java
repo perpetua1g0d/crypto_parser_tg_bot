@@ -16,6 +16,7 @@ import org.telegram.telegrambots.updatesreceivers.DefaultBotSession;
 import java.io.*;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
+import java.util.stream.Collectors;
 
 
 public class CryptoExchangesParserBot extends TelegramLongPollingBot {
@@ -27,10 +28,9 @@ public class CryptoExchangesParserBot extends TelegramLongPollingBot {
     private static String botPassword = null;
     private static String pathToArbChains = null;
     private static boolean botLoggedIn = false;
-    private static String botChatId = "638273225";
+    private static String botChatId = null;
     public static int botAutoUpdateSeconds = 0;
     private static int topChainsCount = 0;
-    private static double profitFilter = 0;
 
     private void setBotConfigPath() {
         try(InputStream in = Thread.currentThread().getContextClassLoader().getResourceAsStream("path_config.json")){
@@ -44,6 +44,14 @@ public class CryptoExchangesParserBot extends TelegramLongPollingBot {
         }
     }
 
+    private void createBlackLists(JSONObject data) {
+        Map<String, Set<String>> blackLists = new HashMap<>();
+        List<String> exNames = new ArrayList<>(Arrays.asList("okx", "binance", "gate", "bybit", "huobi", "kucoin"));
+        exNames.forEach(exName -> blackLists.put(exName, Arrays.stream(((String) data.get(exName + "_black_list")).split(", "))
+                .collect(Collectors.toSet())));
+        mainService.setBlackLists(blackLists);
+    }
+
     private void setBotSettings() {
         try(InputStream in = new FileInputStream(botConfigPath + botConfigName)){
             JSONParser jsonParser = new JSONParser();
@@ -53,12 +61,14 @@ public class CryptoExchangesParserBot extends TelegramLongPollingBot {
             botChatId = (String) data.get("bot_chat_id");
             botLoggedIn = !Boolean.parseBoolean(String.valueOf(data.get("bot_need_auth")));
             botPassword = (String) data.get("bot_password");
-            mainService.setBlackList(new ArrayList<>(Arrays.stream(((String) data.get("black_list")).split(", ")).toList()));
+            mainService.setCommonBlackList(new ArrayList<>(Arrays.stream(((String) data.get("common_black_list")).split(", ")).toList()));
+            createBlackLists(data);
             topChainsCount = Integer.parseInt(String.valueOf(data.get("top_arb_chains_count")));
             botAutoUpdateSeconds = Integer.parseInt(String.valueOf(data.get("bot_auto_update_seconds")));
-            profitFilter = Double.parseDouble(String.valueOf(data.get("filter_profit")));
+            mainService.setArbChainProfitFilter(String.valueOf(data.get("filter_profit")));
             mainService.setLiquidityFilter(String.valueOf(data.get("filter_liquidity")));
             mainService.setQuoteAssetFilter(String.valueOf(data.get("filter_pair_to")));
+            mainService.setSubListMaxDim(Integer.parseInt(String.valueOf(data.get("signal_sell_ex_count"))) + 1);
             pathToArbChains = data.get("path_to_arb_chains") + "arb_chains.txt";
         }
         catch(Exception e) {
@@ -120,29 +130,35 @@ public class CryptoExchangesParserBot extends TelegramLongPollingBot {
 
     private static String arbChainToTextSignal(ArbChain arbChain) {
         Ticker tickerFrom = arbChain.tickerFrom;
-        Ticker tickerTo = arbChain.tickerTo;
+        List<Ticker> tickerTo = arbChain.tickerTo;
 
-        return "💎" + tickerFrom.pairAsset.first + "/" + tickerFrom.pairAsset.second
-                + " (профит: " + String.format("%,.2f", Double.parseDouble(eraseTrailingZero(arbChain.profit))) + "%)" + "\n"
-                + "📉Купить на: " + arbChain.exFrom + " по цене: " + eraseTrailingZero(tickerFrom.lastPrice) + "$\n"
-                + "💰Объем 24ч: " + String.format("%,.0f", Double.parseDouble(eraseTrailingZero(tickerFrom.vol24h))) + "$\n"
-                + "📈Продать на: " + arbChain.exTo + " по цене: " + eraseTrailingZero(tickerTo.lastPrice) + "$\n"
-                + "💰Объем 24ч: " + String.format("%,.0f", Double.parseDouble(eraseTrailingZero(tickerTo.vol24h)) )+ "$\n";
+        StringBuilder signal = new StringBuilder("💎" + tickerFrom.pairAsset.first + "/" + tickerFrom.pairAsset.second + "\n"
+                + "📉Купить на: " + tickerFrom.exName.toUpperCase() + " по цене: " + eraseTrailingZero(tickerFrom.lastPrice) + "$\n"
+                + "💰Объем 24ч: " + String.format("%,.0f", Double.parseDouble(eraseTrailingZero(tickerFrom.vol24h))) + "$\n");
+
+        for (int i = 0; i < arbChain.profit.size(); ++i) {
+            String cur = " (профит: " + String.format("%,.2f", Double.parseDouble(eraseTrailingZero(arbChain.profit.get(i)))) + "%)" + "\n"
+                    + "📈Продать на: " + arbChain.tickerTo.get(i).exName.toUpperCase() + " по цене: " + eraseTrailingZero(tickerTo.get(i).lastPrice) + "$\n"
+                    + "💰Объем 24ч: " + String.format("%,.0f", Double.parseDouble(eraseTrailingZero(tickerTo.get(i).vol24h)) )+ "$\n";
+            signal.append(cur);
+        }
+
+        return signal.toString();
     }
     
     public void sendYourTopArbChains() throws TelegramApiException {
         ArrayList<ArbChain> arbChains = mainService.getArbChains();
-        if (arbChains == null || arbChains.isEmpty()) {
+        if (arbChains == null) {
             botSendMessage("Нет данных.", botChatId);
+            return;
+        }
+        if (arbChains.isEmpty()) {
+            System.out.println("В данный момент нет доступных связок по заданным фильтрам.");
             return;
         }
 
         for (int i = 0; i < Math.min(arbChains.size(), topChainsCount); ++i) {
-            ArbChain arbChain = arbChains.get(i);
-            if (Double.compare(Double.parseDouble(arbChain.profit), profitFilter) < 0)
-                break;
-
-            botSendMessage(arbChainToTextSignal(arbChain), botChatId);
+            botSendMessage(arbChainToTextSignal(arbChains.get(i)), botChatId);
         }
     }
 
@@ -206,9 +222,12 @@ public class CryptoExchangesParserBot extends TelegramLongPollingBot {
                     case "/get_your_list_profit_message" -> {
                         textList = new ArrayList<>();
                         ArrayList<String> finalTextList = textList;
-                        mainService.getArbChains().stream()
-                                .filter(arbChain -> Double.compare(Double.parseDouble(arbChain.profit), profitFilter) >= 0)
-                                .forEach(arbChain -> finalTextList.add(arbChainToTextSignal(arbChain)));
+                        mainService.getArbChains().forEach(arbChain -> finalTextList.add(arbChainToTextSignal(arbChain)));
+
+                        if (textList.isEmpty()) {
+                            System.out.println("В данный момент нет доступных связок по заданным фильтрам.");
+                            return;
+                        }
                         writeUsingFileWriter(textList);
                         botSendMessage("Связки записаны в файл " + pathToArbChains, botChatId);
                     }

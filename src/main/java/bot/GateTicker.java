@@ -14,15 +14,15 @@ import org.json.simple.parser.ParseException;
 import java.io.IOException;
 import java.util.ArrayList;
 
-public class OKXticker extends Ticker{
+public class GateTicker extends Ticker{
 
-    public OKXticker(String exName, String symbol, PairAsset pairAsset, String lastPrice, String volCcy24h) {
-        super(exName, symbol, pairAsset, lastPrice, volCcy24h);
+    public GateTicker(String exName, String symbol, PairAsset pairAsset, String lastPrice, String vol24) {
+        super(exName, symbol, pairAsset, lastPrice, vol24);
     }
 
     @Override
     public String toString() {
-        return "bot.OKXticker{" +
+        return "bot.GateTicker{" +
                 "symbol='" + symbol + '\'' +
                 "pairAsset='" + pairAsset + '\'' +
                 ", lastPrice='" + lastPrice + '\'' +
@@ -30,15 +30,8 @@ public class OKXticker extends Ticker{
                 '}';
     }
 
-    private static void stupidSleep() {
-        for (long i = 0; i < 2e9; ++i) {
-            i++;
-            --i;
-        }
-    }
-
-    public static ArrayList<OKXticker> genOKXtickers() throws IOException, ParseException {
-        HttpGet request = new HttpGet("https://www.okx.com/priapi/v5/market/tickers?t=1668155757120&instType=SPOT");
+    public static ArrayList<GateTicker> genGateTickers() throws IOException, ParseException {
+        HttpGet request = new HttpGet("https://api.gateio.ws/api/v4/spot/tickers");
         String responseStr = null;
         try (CloseableHttpClient httpClient = HttpClients.createDefault();
              CloseableHttpResponse response = httpClient.execute(request)) {
@@ -46,26 +39,22 @@ public class OKXticker extends Ticker{
             if (entity != null) {
                 responseStr = EntityUtils.toString(entity);
             }
-        } catch (IOException e) {
-            System.out.println("connection to OKX failed.\nretrying...");
-            stupidSleep();
-            return genOKXtickers();
         }
 
         JSONParser jsonParser = new JSONParser();
-        JSONArray data = (JSONArray) ((JSONObject) jsonParser.parse(responseStr)).get("data");
+        JSONArray data = (JSONArray) (jsonParser.parse(responseStr));
 
-        ArrayList<OKXticker> tickers = new ArrayList<>();
+        ArrayList<GateTicker> tickers = new ArrayList<>();
         for (Object dataItem : data) {
             JSONObject cur = (JSONObject) dataItem;
 
-            String instId = (String) cur.get("instId");
-            final int dashPos = instId.indexOf('-');
+            String instId = (String) cur.get("currency_pair");
+            final int dashPos = instId.indexOf('_');
             String assetFirst = instId.substring(0, dashPos);
             String assetSecond = instId.substring(dashPos + 1);
             String lastPrice = (String) cur.get("last");
-            String volCcy24h = (String) cur.get("volCcy24h");
-            tickers.add(new OKXticker("okx", assetFirst + assetSecond, new PairAsset(assetFirst, assetSecond), lastPrice, volCcy24h));
+            String vol24 = (String) cur.get("quote_volume");
+            tickers.add(new GateTicker("gate", assetFirst + assetSecond, new PairAsset(assetFirst, assetSecond), lastPrice, vol24));
         }
 
         return tickers;
