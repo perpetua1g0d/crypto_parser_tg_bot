@@ -141,7 +141,7 @@ public class MainService {
         System.out.println("Binance parsing started.");
         Instant timeMeasureStart = Instant.now();
         if (binanceMapping == null)
-            binanceMapping = BybitTicker.genBybitSymbolsMapping();
+            binanceMapping = BinanceTicker.genBinanceSymbolsMapping();
         binanceTickers = Ticker.tickersToHashMap(BinanceTicker.genBinanceTickers(binanceMapping));
         Instant timeMeasureEnd = Instant.now();
         System.out.println("Binance parsing finished. Elapsed time: " + Duration.between(timeMeasureStart, timeMeasureEnd).toMillis() + " ms.");
@@ -155,7 +155,7 @@ public class MainService {
         System.out.println("Huobi parsing started.");
         timeMeasureStart = Instant.now();
         if (huobiMapping == null)
-            huobiMapping = BybitTicker.genBybitSymbolsMapping();
+            huobiMapping = HuobiTicker.genHuobiSymbolsMapping();
         huobiTickers = Ticker.tickersToHashMap(HuobiTicker.genHuobiTickers(huobiMapping));
         timeMeasureEnd = Instant.now();
         System.out.println("Huobi parsing finished. Elapsed time: " + Duration.between(timeMeasureStart, timeMeasureEnd).toMillis() + " ms.");

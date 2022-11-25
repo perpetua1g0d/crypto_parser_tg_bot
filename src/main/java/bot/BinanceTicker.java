@@ -21,7 +21,7 @@ public class BinanceTicker extends Ticker {
     }
 
     public static HashMap<String, PairAsset> genBinanceSymbolsMapping() throws IOException, ParseException {
-        HttpGet request = new HttpGet("https://api.binance.com/api/v1/exchangeInfo");
+        HttpGet request = new HttpGet("https://api.binance.com/api/v3/exchangeInfo");
 
         String responseStr = null;
         try (CloseableHttpClient httpClient = HttpClients.createDefault();
