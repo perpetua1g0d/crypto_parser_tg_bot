@@ -13,6 +13,9 @@ import org.json.simple.parser.ParseException;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashSet;
+import java.util.Set;
 
 public class KucoinTicker extends Ticker{
 
@@ -45,6 +48,7 @@ public class KucoinTicker extends Ticker{
         JSONArray data = (JSONArray) ((JSONObject)((JSONObject) jsonParser.parse(responseStr)).get("data")).get("ticker");
 
         ArrayList<KucoinTicker> tickers = new ArrayList<>();
+        Set<String> futureEndings = new HashSet<>(Arrays.asList("1S", "2S", "3S", "1L", "2L", "3L"));
         for (Object dataItem : data) {
             JSONObject cur = (JSONObject) dataItem;
 
@@ -52,6 +56,11 @@ public class KucoinTicker extends Ticker{
             final int dashPos = instId.indexOf('-');
             String assetFirst = instId.substring(0, dashPos);
             String assetSecond = instId.substring(dashPos + 1);
+
+
+            if (assetFirst.length() > 1 && futureEndings.contains(assetFirst.substring(assetFirst.length() - 2)))
+                continue;
+
             String lastPrice = (String) cur.get("last");
             String vol24 = (String) cur.get("volValue");
             tickers.add(new KucoinTicker("kucoin", assetFirst + assetSecond, new PairAsset(assetFirst, assetSecond), lastPrice, vol24));

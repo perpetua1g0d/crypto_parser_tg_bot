@@ -53,6 +53,8 @@ public class HuobiTicker extends Ticker{
             String symbol = ((String) cur.get("symbol")).toUpperCase();
             String assetFirst = ((String) cur.get("base-currency")).toUpperCase();
             String assetSecond = ((String) cur.get("quote-currency")).toUpperCase();
+            if (cur.get("underlying") != null)
+                continue;
 
             mapping.put(symbol, new PairAsset(assetFirst, assetSecond));
         }
@@ -61,8 +63,6 @@ public class HuobiTicker extends Ticker{
     }
 
     private static PairAsset mapHuobiSymbol(HashMap<String, PairAsset> mapping, String symbol) {
-//        if (!mapping.containsKey(symbol))
-//            System.out.println(symbol + " doesn't exist.");
         return mapping.get(symbol);
     }
 

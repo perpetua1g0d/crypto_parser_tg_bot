@@ -12,8 +12,7 @@ import org.json.simple.parser.JSONParser;
 import org.json.simple.parser.ParseException;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.HashMap;
+import java.util.*;
 
 public class BybitTicker extends Ticker{
     public BybitTicker(String exName, String symbol, PairAsset pairAsset, String lastPrice, String vol) {
@@ -47,12 +46,16 @@ public class BybitTicker extends Ticker{
 
         HashMap<String, PairAsset> mapping = new HashMap<>();
 
+        Set<String> futureEndings = new HashSet<>(Arrays.asList("1S", "2S", "3S", "1L", "2L", "3L"));
         for (Object dataItem : data) {
             JSONObject cur = (JSONObject) dataItem;
 
             String symbol = (String) cur.get("name");
             String assetFirst = (String) cur.get("baseCoin");
             String assetSecond = (String) cur.get("quoteCoin");
+
+            if (assetFirst.length() > 1 && futureEndings.contains(assetFirst.substring(assetFirst.length() - 2)))
+                continue;
 
             mapping.put(symbol, new PairAsset(assetFirst, assetSecond));
         }
