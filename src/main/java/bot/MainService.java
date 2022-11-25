@@ -25,6 +25,9 @@ public class MainService {
     private static Set<String> allowedBaseAssetsSet = null;
     private static Set<String> commonBlackListSet = null;
     private static Map<String, Set<String>> blackLists = null;
+    private static HashMap<String, PairAsset> bybitMapping = null;
+    private static HashMap<String, PairAsset> binanceMapping = null;
+    private static HashMap<String, PairAsset> huobiMapping = null;
     private static HashMap<String, Ticker> OKXtickers = null;
     private static HashMap<String, Ticker> binanceTickers = null;
     private static HashMap<String, Ticker> huobiTickers = null;
@@ -137,7 +140,9 @@ public class MainService {
     public void updateInstance() throws IOException, ParseException {
         System.out.println("Binance parsing started.");
         Instant timeMeasureStart = Instant.now();
-        binanceTickers = Ticker.tickersToHashMap(BinanceTicker.genBinanceTickers());
+        if (binanceMapping == null)
+            binanceMapping = BybitTicker.genBybitSymbolsMapping();
+        binanceTickers = Ticker.tickersToHashMap(BinanceTicker.genBinanceTickers(binanceMapping));
         Instant timeMeasureEnd = Instant.now();
         System.out.println("Binance parsing finished. Elapsed time: " + Duration.between(timeMeasureStart, timeMeasureEnd).toMillis() + " ms.");
 
@@ -149,13 +154,17 @@ public class MainService {
 
         System.out.println("Huobi parsing started.");
         timeMeasureStart = Instant.now();
-        huobiTickers = Ticker.tickersToHashMap(HuobiTicker.genHuobiTickers());
+        if (huobiMapping == null)
+            huobiMapping = BybitTicker.genBybitSymbolsMapping();
+        huobiTickers = Ticker.tickersToHashMap(HuobiTicker.genHuobiTickers(huobiMapping));
         timeMeasureEnd = Instant.now();
         System.out.println("Huobi parsing finished. Elapsed time: " + Duration.between(timeMeasureStart, timeMeasureEnd).toMillis() + " ms.");
 
         System.out.println("Bybit parsing started.");
         timeMeasureStart = Instant.now();
-        bybitTickers = Ticker.tickersToHashMap(BybitTicker.genBybitTickers());
+        if (bybitMapping == null)
+            bybitMapping = BybitTicker.genBybitSymbolsMapping();
+        bybitTickers = Ticker.tickersToHashMap(BybitTicker.genBybitTickers(bybitMapping));
         timeMeasureEnd = Instant.now();
         System.out.println("Bybit parsing finished. Elapsed time: " + Duration.between(timeMeasureStart, timeMeasureEnd).toMillis() + " ms.");
 

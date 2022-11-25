@@ -16,13 +16,11 @@ import java.util.ArrayList;
 import java.util.HashMap;
 
 public class BinanceTicker extends Ticker {
-    public String exName = "Binance";
-
     public BinanceTicker(String exName, String symbol, PairAsset pairAsset, String lastPrice, String vol24h) {
         super(exName, symbol, pairAsset, lastPrice, vol24h);
     }
 
-    private static HashMap<String, PairAsset> genBinanceSymbolsMapping() throws IOException, ParseException {
+    public static HashMap<String, PairAsset> genBinanceSymbolsMapping() throws IOException, ParseException {
         HttpGet request = new HttpGet("https://api.binance.com/api/v1/exchangeInfo");
 
         String responseStr = null;
@@ -58,7 +56,7 @@ public class BinanceTicker extends Ticker {
         return mapping.get(symbol);
     }
 
-    public static ArrayList<BinanceTicker> genBinanceTickers() throws IOException, ParseException {
+    public static ArrayList<BinanceTicker> genBinanceTickers(HashMap<String, PairAsset> mapping) throws IOException, ParseException {
         HttpGet request = new HttpGet("https://api.binance.com/api/v3/ticker/24hr");
 
         String responseStr = null;
@@ -73,7 +71,7 @@ public class BinanceTicker extends Ticker {
         JSONParser jsonParser = new JSONParser();
         JSONArray data = (JSONArray) jsonParser.parse(responseStr);
 
-        HashMap<String, PairAsset> mapping = genBinanceSymbolsMapping();
+//        HashMap<String, PairAsset> mapping = genBinanceSymbolsMapping();
         ArrayList<BinanceTicker> tickers = new ArrayList<>();
         for (Object dataItem : data) {
             JSONObject cur = (JSONObject) dataItem;

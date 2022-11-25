@@ -30,7 +30,7 @@ public class BybitTicker extends Ticker{
                 '}';
     }
 
-    private static HashMap<String, PairAsset> genBybitSymbolsMapping() throws IOException, ParseException {
+    public static HashMap<String, PairAsset> genBybitSymbolsMapping() throws IOException, ParseException {
         HttpGet request = new HttpGet("https://api.bybit.com/spot/v3/public/symbols");
 
         String responseStr = null;
@@ -66,8 +66,8 @@ public class BybitTicker extends Ticker{
         return mapping.get(symbol);
     }
 
-    public static ArrayList<BybitTicker> genBybitTickers() throws IOException, ParseException {
-            HttpGet request = new HttpGet("https://api.bybit.com/v2/public/tickers");
+    public static ArrayList<BybitTicker> genBybitTickers(HashMap<String, PairAsset> mapping) throws IOException, ParseException {
+            HttpGet request = new HttpGet("https://api.bybit.com/spot/v3/public/quote/ticker/24hr");
 
         String responseStr = null;
         try (CloseableHttpClient httpClient = HttpClients.createDefault();
@@ -79,19 +79,19 @@ public class BybitTicker extends Ticker{
         }
 
         JSONParser jsonParser = new JSONParser();
-        JSONArray data = (JSONArray) ((JSONObject) jsonParser.parse(responseStr)).get("result");
+        JSONArray data = (JSONArray) ((JSONObject) ((JSONObject) jsonParser.parse(responseStr)).get("result")).get("list");
 
-        HashMap<String, PairAsset> mapping = genBybitSymbolsMapping();
+//        HashMap<String, PairAsset> mapping = genBybitSymbolsMapping();
         ArrayList<BybitTicker> tickers = new ArrayList<>();
         for (Object dataItem : data) {
             JSONObject cur = (JSONObject) dataItem;
 
-            String symbol = ((String) cur.get("symbol")).toUpperCase();
+            String symbol = (String) cur.get("s");
             PairAsset mapped = mapBybitSymbol(mapping, symbol);
             if (mapped == null)
                 continue;
 
-            tickers.add(new BybitTicker("bybit", symbol, mapped, String.valueOf(cur.get("last_price")), String.valueOf(cur.get("turnover_24h"))));
+            tickers.add(new BybitTicker("bybit", symbol, mapped, String.valueOf(cur.get("lp")), String.valueOf(cur.get("qv"))));
         }
 
         return tickers;

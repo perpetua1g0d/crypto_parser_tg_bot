@@ -30,7 +30,7 @@ public class HuobiTicker extends Ticker{
                 '}';
     }
 
-    private static HashMap<String, PairAsset> genHuobiSymbolsMapping() throws IOException, ParseException {
+    public static HashMap<String, PairAsset> genHuobiSymbolsMapping() throws IOException, ParseException {
         HttpGet request = new HttpGet("https://api.huobi.pro/v1/common/symbols");
 
         String responseStr = null;
@@ -66,7 +66,7 @@ public class HuobiTicker extends Ticker{
         return mapping.get(symbol);
     }
 
-    public static ArrayList<HuobiTicker> genHuobiTickers() throws IOException, ParseException {
+    public static ArrayList<HuobiTicker> genHuobiTickers(HashMap<String, PairAsset> mapping) throws IOException, ParseException {
         HttpGet request = new HttpGet("https://api.huobi.pro/market/tickers");
 
         String responseStr = null;
@@ -81,7 +81,7 @@ public class HuobiTicker extends Ticker{
         JSONParser jsonParser = new JSONParser();
         JSONArray data = (JSONArray) ((JSONObject) jsonParser.parse(responseStr)).get("data");
 
-        HashMap<String, PairAsset> mapping = genHuobiSymbolsMapping();
+//        HashMap<String, PairAsset> mapping = genHuobiSymbolsMapping();
         ArrayList<HuobiTicker> tickers = new ArrayList<>();
         for (Object dataItem : data) {
             JSONObject cur = (JSONObject) dataItem;
