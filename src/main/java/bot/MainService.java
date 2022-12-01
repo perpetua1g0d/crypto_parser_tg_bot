@@ -25,6 +25,7 @@ public class MainService {
     private static Set<String> allowedBaseAssetsSet = null;
     private static Set<String> commonBlackListSet = null;
     private static ArrayList<String> exchangeList = null;
+    private static ArrayList<String> fullExchangeList = new ArrayList<>(Arrays.asList("binance", "okx", "huobi", "bybit", "kucoin", "gate"));
     private static Map<String, Set<String>> blackLists = null;
     private static HashMap<String, PairAsset> bybitMapping = null;
     private static HashMap<String, PairAsset> binanceMapping = null;
@@ -32,6 +33,10 @@ public class MainService {
     private static Set<String> commonSymbols = null;
     private static List<HashMap<String, Ticker>> tickersList = null;
     private static int subListMaxDim = 0;
+
+    public void setExchangeList(ArrayList<String> newExchange_list) {
+        MainService.exchangeList = newExchange_list;
+    }
 
     public void setSubListMaxDim(int newSubListMaxDim) {
         subListMaxDim = newSubListMaxDim;
@@ -53,42 +58,28 @@ public class MainService {
         allowedBaseAssetsSet = new HashSet<>(newAllowedBaseAssetsList);
     }
 
-    public void updateCommonBlackList(ArrayList<String> newCommonBlackListSet) {
-        if (commonBlackListSet == null)
-            commonBlackListSet = new HashSet<>();
-
-        commonBlackListSet.addAll(new HashSet<>(newCommonBlackListSet));
+    public int getSubListMaxDim() {
+        return subListMaxDim;
     }
 
-    public void setExchangeList(ArrayList<String> newExchange_list) {
-        MainService.exchangeList = newExchange_list;
+    public String getLiquidityFilter() {
+        return liquidityFilter;
     }
 
-    public void updateBlackLists(Map<String, Set<String>> newBlackLists) {
-        if (blackLists == null)
-            blackLists = new HashMap<>();
-
-        newBlackLists.forEach((key, value) -> {
-            if (!blackLists.containsKey(key))
-                blackLists.put(key, value);
-            else
-                blackLists.get(key).addAll(value);
-        });
+    public String getQuoteAssetFilter() {
+        return quoteAssetFilter;
     }
 
-    private static class ArbChainComparator implements Comparator<ArbChain> {
-
-        @Override
-        public int compare(ArbChain ac1, ArbChain ac2) {
-            return Double.compare(Double.parseDouble(ac2.profit.get(0)), Double.parseDouble(ac1.profit.get(0)));
-        }
+    public String getArbChainProfitFilter() {
+        return arbChainProfitFilter;
     }
 
-    private static class TickerPriceComparator implements Comparator<Ticker> {
-        @Override
-        public int compare(Ticker t1, Ticker t2) {
-            return Double.compare(Double.parseDouble(t2.lastPrice), Double.parseDouble(t1.lastPrice));
-        }
+    public Set<String> getCommonBlackListSet() {
+        return commonBlackListSet;
+    }
+
+    public Map<String, Set<String>> getBlackLists() {
+        return blackLists;
     }
 
     public ArrayList<ArbChain> getArbChains() {
@@ -114,6 +105,60 @@ public class MainService {
 
     public static MainService getInstance() {
         return new MainService();
+    }
+
+    public void updateCommonBlackList(ArrayList<String> symbols) {
+        if (commonBlackListSet == null)
+            commonBlackListSet = new HashSet<>();
+
+        commonBlackListSet.addAll(new HashSet<>(symbols));
+    }
+
+    public void removeCommonBlackList(ArrayList<String> symbols) {
+        if (commonBlackListSet == null)
+            return;
+
+        commonBlackListSet.removeAll(new HashSet<>(symbols));
+    }
+
+    public void updateBlackLists(Map<String, Set<String>> newBlackLists) {
+        if (blackLists == null) {
+            blackLists = new HashMap<>();
+            fullExchangeList.forEach(ex -> blackLists.put(ex, new HashSet<>()));
+        }
+//            blackLists = new HashMap<>().putAll(fullExchangeList.stream().map(ex -> Map.entry(ex, new HashSet<>())).collect()));
+
+        newBlackLists.forEach((key, value) -> {
+            value.remove("");
+
+            if (!blackLists.containsKey(key))
+                blackLists.put(key, value);
+            else
+                blackLists.get(key).addAll(value);
+        });
+    }
+
+    public void removeBlackLists(String exName, Set<String> symbols) {
+        if (blackLists == null || !blackLists.containsKey(exName))
+            return;
+
+        symbols.remove("");
+        blackLists.get(exName).removeAll(symbols);
+    }
+
+    private static class ArbChainComparator implements Comparator<ArbChain> {
+
+        @Override
+        public int compare(ArbChain ac1, ArbChain ac2) {
+            return Double.compare(Double.parseDouble(ac2.profit.get(0)), Double.parseDouble(ac1.profit.get(0)));
+        }
+    }
+
+    private static class TickerPriceComparator implements Comparator<Ticker> {
+        @Override
+        public int compare(Ticker t1, Ticker t2) {
+            return Double.compare(Double.parseDouble(t2.lastPrice), Double.parseDouble(t1.lastPrice));
+        }
     }
 
     private ArrayList<ArbChain> recursiveGenArbChains(List<HashMap<String, Ticker>> tickersList, List<Integer> idxs, int curDim, final int dim, final boolean toFilter) {

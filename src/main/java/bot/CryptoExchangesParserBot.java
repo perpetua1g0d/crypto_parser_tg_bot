@@ -1,6 +1,5 @@
 package bot;
 
-import org.json.simple.JSONObject;
 import org.json.simple.parser.JSONParser;
 import org.json.simple.parser.ParseException;
 import org.telegram.telegrambots.bots.DefaultBotOptions;
@@ -16,7 +15,6 @@ import org.telegram.telegrambots.meta.api.objects.replykeyboard.buttons.InlineKe
 import org.telegram.telegrambots.meta.exceptions.TelegramApiException;
 import org.telegram.telegrambots.updatesreceivers.DefaultBotSession;
 
-import javax.security.auth.callback.Callback;
 import java.io.*;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
@@ -41,7 +39,7 @@ public class CryptoExchangesParserBot extends TelegramLongPollingBot {
         try(InputStream in = Thread.currentThread().getContextClassLoader().getResourceAsStream("path_config.json")){
             JSONParser jsonParser = new JSONParser();
             assert in != null;
-            JSONObject data = (JSONObject) jsonParser.parse(new InputStreamReader(in, StandardCharsets.UTF_8));
+            org.json.simple.JSONObject data = (org.json.simple.JSONObject) jsonParser.parse(new InputStreamReader(in, StandardCharsets.UTF_8));
             botConfigPath = (String) data.get("bot_config_path");
             botConfigName = (String) data.get("bot_config_name");
         } catch(Exception e) {
@@ -49,7 +47,7 @@ public class CryptoExchangesParserBot extends TelegramLongPollingBot {
         }
     }
 
-    private void createBlackLists(JSONObject data) {
+    private void createBlackLists(org.json.simple.JSONObject data) {
         Map<String, Set<String>> blackLists = new HashMap<>();
         List<String> exNames = exchangeList;
 //        List<String> exNames = new ArrayList<>(Arrays.asList("okx", "binance", "gate", "bybit", "huobi", "kucoin"));
@@ -61,7 +59,7 @@ public class CryptoExchangesParserBot extends TelegramLongPollingBot {
     private void setBotSettings() {
         try(InputStream in = new FileInputStream(botConfigPath + botConfigName)){
             JSONParser jsonParser = new JSONParser();
-            JSONObject data = (JSONObject) jsonParser.parse(new InputStreamReader(in, StandardCharsets.UTF_8));
+            org.json.simple.JSONObject data = (org.json.simple.JSONObject) jsonParser.parse(new InputStreamReader(in, StandardCharsets.UTF_8));
             botUsername = (String) data.get("bot_username");
             botToken = (String) data.get("bot_token");
             botChatId = (String) data.get("bot_chat_id");
@@ -132,6 +130,30 @@ public class CryptoExchangesParserBot extends TelegramLongPollingBot {
         }
     }
 
+    private void saveSettingsToConfig() {
+        org.json.JSONObject config = new org.json.JSONObject();
+        config.put("bot_username", botUsername);
+        config.put("bot_token", botToken);
+        config.put("bot_chat_id", botChatId);
+        config.put("bot_need_auth", !botLoggedIn);
+        config.put("bot_auto_update_seconds", botAutoUpdateSeconds);
+        config.put("top_arb_chains_count", topChainsCount);
+        config.put("exchange_list", exchangeList.toString().replaceAll("[\\[\\]]", ""));
+        config.put("common_black_list", mainService.getCommonBlackListSet().toString().replaceAll("[\\[\\]]", ""));
+        mainService.getBlackLists().forEach((key, value) -> config.put(key + "_black_list", value.toString().replaceAll("[\\[\\]]", "")));
+        config.put("filter_profit", Double.parseDouble(mainService.getArbChainProfitFilter()));
+        config.put("filter_liquidity", Integer.parseInt(mainService.getLiquidityFilter()));
+        config.put("filter_pair_to", mainService.getQuoteAssetFilter());
+        config.put("signal_sell_ex_count", mainService.getSubListMaxDim() - 1);
+
+        File file = new File(botConfigPath + botConfigName);
+        try (FileWriter fr = new FileWriter(file)) {
+            fr.write(config.toString(4));
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+
     public void updateMainInstance() throws IOException, ParseException {
         mainService.updateInstance();
     }
@@ -181,19 +203,17 @@ public class CryptoExchangesParserBot extends TelegramLongPollingBot {
     }
 
     private void handleCallback(CallbackQuery callbackQuery) throws TelegramApiException {
-        Message message = callbackQuery.getMessage();
         String[] param = callbackQuery.getData().split(":");
         String action = param[0];
 
         switch (action) {
-            case "COMMON_BLACK_LIST" -> {
-//                botSendMessage();
-            }
-            case "BLACK_LIST" -> {
-                botSendMessage("Пришлите сообщение в формате:/update_black_list имя_биржи список_через_запятую\nПример: /update_black_list binance BTC, PERP, SOL", botChatId);
-            }
+            case "UPDATE_COMMON_BLACK_LIST" -> botSendMessage("Пришлите сообщение в формате:/update_common_black_list имя_биржи: список_через_запятую\nПример: /update_common_black_list BTC, PERP, SOL", botChatId);
+            case "REMOVE_COMMON_BLACK_LIST" -> botSendMessage("Пришлите сообщение в формате:/remove_common_black_list имя_биржи: список_через_запятую\nПример: /remove_common_black_list BTC, PERP, SOL", botChatId);
+            case "UPDATE_BLACK_LIST" -> botSendMessage("Пришлите сообщение в формате:/update_black_list имя_биржи: список_через_запятую\nПример: /update_black_list binance: BTC, PERP, SOL", botChatId);
+            case "REMOVE_BLACK_LIST" -> botSendMessage("Пришлите сообщение в формате:/remove_black_list имя_биржи: список_через_запятую\nПример: /remove_black_list binance: BTC, PERP, SOL", botChatId);
         }
     }
+
 
     private void handleMessage(Message message) throws TelegramApiException, IOException, ParseException {
         if (message.hasText() && message.hasEntities()) {
@@ -227,14 +247,26 @@ public class CryptoExchangesParserBot extends TelegramLongPollingBot {
                         List<List<InlineKeyboardButton>> buttons = new ArrayList<>();
                         buttons.add(Collections.singletonList(
                                 InlineKeyboardButton.builder()
-                                        .text("Общий черный список")
-                                        .callbackData("COMMON_BLACK_LIST:")
+                                        .text("Добавить в общий черный список")
+                                        .callbackData("UPDATE_COMMON_BLACK_LIST:")
                                         .build()
                         ));
                         buttons.add(Collections.singletonList(
                                 InlineKeyboardButton.builder()
-                                        .text("Черный список конкретной биржи")
-                                        .callbackData("BLACK_LIST:")
+                                        .text("Добавить в конкретный черный список")
+                                        .callbackData("UPDATE_BLACK_LIST:")
+                                        .build()
+                        ));
+                        buttons.add(Collections.singletonList(
+                                InlineKeyboardButton.builder()
+                                        .text("Удалить из общего черного списка")
+                                        .callbackData("UPDATE_COMMON_BLACK_LIST:")
+                                        .build()
+                        ));
+                        buttons.add(Collections.singletonList(
+                                InlineKeyboardButton.builder()
+                                        .text("Удалить из конкретного черного списка")
+                                        .callbackData("REMOVE_BLACK_LIST:")
                                         .build()
                         ));
 
@@ -245,10 +277,38 @@ public class CryptoExchangesParserBot extends TelegramLongPollingBot {
                                 .build());
                     }
                     case "/update_black_list" -> {
-
+                        String data = message.getText().substring(commonEntity.get().getOffset() + commonEntity.get().getLength() + 1);
+                        ArrayList<String> dataSeparated = new ArrayList<>(Arrays.stream(data.split(": ")).toList());
+                        String exName = dataSeparated.get(0);
+                        ArrayList<String> symbolsList = Arrays.stream(dataSeparated.get(1).split(", ")).collect(Collectors.toCollection(ArrayList::new));
+                        if (exName.equals("common")) {
+                            mainService.updateCommonBlackList(symbolsList);
+                            botSendMessage("Черный список " + exName + " был обновлен.", botChatId);
+                            return;
+                        }
+                        Set<String> symbols = new HashSet<>(symbolsList);
+                        Map<String, Set<String>> blackLists = new HashMap<>();
+                        blackLists.put(exName, symbols);
+                        mainService.updateBlackLists(blackLists);
+                        botSendMessage("Черный список " + exName + " был обновлен.", botChatId);
                     }
-                    case "/get_exchanges" -> {
-                        botSendMessage(exchangeList.toString(), botChatId);
+                    case "/remove_black_list" -> {
+                        String data = message.getText().substring(commonEntity.get().getOffset() + commonEntity.get().getLength() + 1);
+                        ArrayList<String> dataSeparated = new ArrayList<>(Arrays.stream(data.split(": ")).toList());
+                        String exName = dataSeparated.get(0);
+                        ArrayList<String> symbolsList = Arrays.stream(dataSeparated.get(1).split(", ")).collect(Collectors.toCollection(ArrayList::new));
+                        if (exName.equals("common")) {
+                            mainService.removeCommonBlackList(symbolsList);
+                            botSendMessage("Черный список " + exName + " был обновлен.", botChatId);
+                            return;
+                        }
+                        Set<String> symbols = new HashSet<>(symbolsList);
+                        mainService.removeBlackLists(exName, symbols);
+                        botSendMessage("Черный список " + exName + " был обновлен.", botChatId);
+                    }
+                    case "/save_settings_to_config" -> {
+                        saveSettingsToConfig();
+                        botSendMessage("Настройки были успешно сохранены в конфигурационный файл.", botChatId);
                     }
                     case "/set_filter_pair_to" -> {
                         String filterPairTo = message.getText().substring(commonEntity.get().getOffset() + commonEntity.get().getLength() + 1);
@@ -275,6 +335,9 @@ public class CryptoExchangesParserBot extends TelegramLongPollingBot {
                         botSendMessage("Данные обновляются...", botChatId);
                         mainService.updateInstance();
                         botSendMessage("Все данные были обновлены.", botChatId);
+                    }
+                    case "/get_exchanges" -> {
+                        botSendMessage(exchangeList.toString(), botChatId);
                     }
                     case "/get_all_symbols" -> {
                         botSendMessage("Все доступные пары: " + mainService.getCommonSymbols().toString(), botChatId);
