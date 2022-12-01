@@ -24,16 +24,11 @@ public class MainService {
     private static String arbChainProfitFilter = "0.0";
     private static Set<String> allowedBaseAssetsSet = null;
     private static Set<String> commonBlackListSet = null;
+    private static ArrayList<String> exchangeList = null;
     private static Map<String, Set<String>> blackLists = null;
     private static HashMap<String, PairAsset> bybitMapping = null;
     private static HashMap<String, PairAsset> binanceMapping = null;
     private static HashMap<String, PairAsset> huobiMapping = null;
-    private static HashMap<String, Ticker> OKXtickers = null;
-    private static HashMap<String, Ticker> binanceTickers = null;
-    private static HashMap<String, Ticker> huobiTickers = null;
-    private static HashMap<String, Ticker> bybitTickers = null;
-    private static HashMap<String, Ticker> kucoinTickers = null;
-    private static HashMap<String, Ticker> gateTickers = null;
     private static Set<String> commonSymbols = null;
     private static List<HashMap<String, Ticker>> tickersList = null;
     private static int subListMaxDim = 0;
@@ -58,12 +53,27 @@ public class MainService {
         allowedBaseAssetsSet = new HashSet<>(newAllowedBaseAssetsList);
     }
 
-    public void setCommonBlackList(ArrayList<String> newCommonBlackListSet) {
-        commonBlackListSet = new HashSet<>(newCommonBlackListSet);
+    public void updateCommonBlackList(ArrayList<String> newCommonBlackListSet) {
+        if (commonBlackListSet == null)
+            commonBlackListSet = new HashSet<>();
+
+        commonBlackListSet.addAll(new HashSet<>(newCommonBlackListSet));
     }
 
-    public void setBlackLists(Map<String, Set<String>> newBlackLists) {
-        blackLists = newBlackLists;
+    public void setExchangeList(ArrayList<String> newExchange_list) {
+        MainService.exchangeList = newExchange_list;
+    }
+
+    public void updateBlackLists(Map<String, Set<String>> newBlackLists) {
+        if (blackLists == null)
+            blackLists = new HashMap<>();
+
+        newBlackLists.forEach((key, value) -> {
+            if (!blackLists.containsKey(key))
+                blackLists.put(key, value);
+            else
+                blackLists.get(key).addAll(value);
+        });
     }
 
     private static class ArbChainComparator implements Comparator<ArbChain> {
@@ -138,49 +148,67 @@ public class MainService {
     }
 
     public void updateInstance() throws IOException, ParseException {
-        System.out.println("Binance parsing started.");
-        Instant timeMeasureStart = Instant.now();
-        if (binanceMapping == null)
-            binanceMapping = BinanceTicker.genBinanceSymbolsMapping();
-        binanceTickers = Ticker.tickersToHashMap(BinanceTicker.genBinanceTickers(binanceMapping));
-        Instant timeMeasureEnd = Instant.now();
-        System.out.println("Binance parsing finished. Elapsed time: " + Duration.between(timeMeasureStart, timeMeasureEnd).toMillis() + " ms.");
+        tickersList = new ArrayList<>();
 
-        System.out.println("OKX parsing started.");
-        timeMeasureStart = Instant.now();
-        OKXtickers = Ticker.tickersToHashMap(OKXticker.genOKXtickers());
-        timeMeasureEnd = Instant.now();
-        System.out.println("OKX parsing finished. Elapsed time: " + Duration.between(timeMeasureStart, timeMeasureEnd).toMillis() + " ms.");
+        if (exchangeList.contains("binance")) {
+            System.out.println("Binance parsing started.");
+            Instant timeMeasureStart = Instant.now();
+            if (binanceMapping == null)
+                binanceMapping = BinanceTicker.genBinanceSymbolsMapping();
+            HashMap<String, Ticker> binanceTickers = Ticker.tickersToHashMap(BinanceTicker.genBinanceTickers(binanceMapping));
+            Instant timeMeasureEnd = Instant.now();
+            System.out.println("Binance parsing finished. Elapsed time: " + Duration.between(timeMeasureStart, timeMeasureEnd).toMillis() + " ms.");
+            tickersList.add(binanceTickers);
+        }
 
-        System.out.println("Huobi parsing started.");
-        timeMeasureStart = Instant.now();
-        if (huobiMapping == null)
-            huobiMapping = HuobiTicker.genHuobiSymbolsMapping();
-        huobiTickers = Ticker.tickersToHashMap(HuobiTicker.genHuobiTickers(huobiMapping));
-        timeMeasureEnd = Instant.now();
-        System.out.println("Huobi parsing finished. Elapsed time: " + Duration.between(timeMeasureStart, timeMeasureEnd).toMillis() + " ms.");
+        if (exchangeList.contains("okx")) {
+            System.out.println("OKX parsing started.");
+            Instant timeMeasureStart = Instant.now();
+            HashMap<String, Ticker> OKXtickers = Ticker.tickersToHashMap(OKXticker.genOKXtickers());
+            Instant timeMeasureEnd = Instant.now();
+            System.out.println("OKX parsing finished. Elapsed time: " + Duration.between(timeMeasureStart, timeMeasureEnd).toMillis() + " ms.");
+            tickersList.add(OKXtickers);
+        }
 
-        System.out.println("Bybit parsing started.");
-        timeMeasureStart = Instant.now();
-        if (bybitMapping == null)
-            bybitMapping = BybitTicker.genBybitSymbolsMapping();
-        bybitTickers = Ticker.tickersToHashMap(BybitTicker.genBybitTickers(bybitMapping));
-        timeMeasureEnd = Instant.now();
-        System.out.println("Bybit parsing finished. Elapsed time: " + Duration.between(timeMeasureStart, timeMeasureEnd).toMillis() + " ms.");
+        if (exchangeList.contains("huobi")) {
+            System.out.println("Huobi parsing started.");
+            Instant timeMeasureStart = Instant.now();
+            if (huobiMapping == null)
+                huobiMapping = HuobiTicker.genHuobiSymbolsMapping();
+            HashMap<String, Ticker> huobiTickers = Ticker.tickersToHashMap(HuobiTicker.genHuobiTickers(huobiMapping));
+            Instant timeMeasureEnd = Instant.now();
+            System.out.println("Huobi parsing finished. Elapsed time: " + Duration.between(timeMeasureStart, timeMeasureEnd).toMillis() + " ms.");
+            tickersList.add(huobiTickers);
+        }
 
-        System.out.println("Kucoin parsing started.");
-        timeMeasureStart = Instant.now();
-        kucoinTickers = Ticker.tickersToHashMap(KucoinTicker.genKucoinTickers());
-        timeMeasureEnd = Instant.now();
-        System.out.println("Kucoin parsing finished. Elapsed time: " + Duration.between(timeMeasureStart, timeMeasureEnd).toMillis() + " ms.");
+        if (exchangeList.contains("bybit")) {
+            System.out.println("Bybit parsing started.");
+            Instant timeMeasureStart = Instant.now();
+            if (bybitMapping == null)
+                bybitMapping = BybitTicker.genBybitSymbolsMapping();
+            HashMap<String, Ticker> bybitTickers = Ticker.tickersToHashMap(BybitTicker.genBybitTickers(bybitMapping));
+            Instant timeMeasureEnd = Instant.now();
+            System.out.println("Bybit parsing finished. Elapsed time: " + Duration.between(timeMeasureStart, timeMeasureEnd).toMillis() + " ms.");
+            tickersList.add(bybitTickers);
+        }
 
-        System.out.println("Gate parsing started.");
-        timeMeasureStart = Instant.now();
-        gateTickers = Ticker.tickersToHashMap(GateTicker.genGateTickers());
-        timeMeasureEnd = Instant.now();
-        System.out.println("Gate parsing finished. Elapsed time: " + Duration.between(timeMeasureStart, timeMeasureEnd).toMillis() + " ms.");
+        if (exchangeList.contains("kucoin")) {
+            System.out.println("Kucoin parsing started.");
+            Instant timeMeasureStart = Instant.now();
+            HashMap<String, Ticker> kucoinTickers = Ticker.tickersToHashMap(KucoinTicker.genKucoinTickers());
+            Instant timeMeasureEnd = Instant.now();
+            System.out.println("Kucoin parsing finished. Elapsed time: " + Duration.between(timeMeasureStart, timeMeasureEnd).toMillis() + " ms.");
+            tickersList.add(kucoinTickers);
+        }
 
-        tickersList = new ArrayList<>(Arrays.asList(binanceTickers, OKXtickers, huobiTickers, bybitTickers, kucoinTickers, gateTickers));
+        if (exchangeList.contains("gate")) {
+            System.out.println("Gate parsing started.");
+            Instant timeMeasureStart = Instant.now();
+            HashMap<String, Ticker> gateTickers = Ticker.tickersToHashMap(GateTicker.genGateTickers());
+            Instant timeMeasureEnd = Instant.now();
+            System.out.println("Gate parsing finished. Elapsed time: " + Duration.between(timeMeasureStart, timeMeasureEnd).toMillis() + " ms.");
+            tickersList.add(gateTickers);
+        }
     }
 
     private Set<String> genMergedBaseAssetSet(List<HashMap<String, Ticker>> tickersSubList) {

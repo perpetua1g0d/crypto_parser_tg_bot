@@ -7,12 +7,16 @@ import org.telegram.telegrambots.bots.DefaultBotOptions;
 import org.telegram.telegrambots.bots.TelegramLongPollingBot;
 import org.telegram.telegrambots.meta.TelegramBotsApi;
 import org.telegram.telegrambots.meta.api.methods.send.SendMessage;
+import org.telegram.telegrambots.meta.api.objects.CallbackQuery;
 import org.telegram.telegrambots.meta.api.objects.Message;
 import org.telegram.telegrambots.meta.api.objects.MessageEntity;
 import org.telegram.telegrambots.meta.api.objects.Update;
+import org.telegram.telegrambots.meta.api.objects.replykeyboard.InlineKeyboardMarkup;
+import org.telegram.telegrambots.meta.api.objects.replykeyboard.buttons.InlineKeyboardButton;
 import org.telegram.telegrambots.meta.exceptions.TelegramApiException;
 import org.telegram.telegrambots.updatesreceivers.DefaultBotSession;
 
+import javax.security.auth.callback.Callback;
 import java.io.*;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
@@ -21,6 +25,7 @@ import java.util.stream.Collectors;
 
 public class CryptoExchangesParserBot extends TelegramLongPollingBot {
     public static final MainService mainService = MainService.getInstance();
+    private static ArrayList<String> exchangeList = null;
     private static String botConfigPath = null;
     private static String botConfigName = null;
     private static String botUsername = null;
@@ -46,10 +51,11 @@ public class CryptoExchangesParserBot extends TelegramLongPollingBot {
 
     private void createBlackLists(JSONObject data) {
         Map<String, Set<String>> blackLists = new HashMap<>();
-        List<String> exNames = new ArrayList<>(Arrays.asList("okx", "binance", "gate", "bybit", "huobi", "kucoin"));
+        List<String> exNames = exchangeList;
+//        List<String> exNames = new ArrayList<>(Arrays.asList("okx", "binance", "gate", "bybit", "huobi", "kucoin"));
         exNames.forEach(exName -> blackLists.put(exName, Arrays.stream(((String) data.get(exName + "_black_list")).split(", "))
                 .collect(Collectors.toSet())));
-        mainService.setBlackLists(blackLists);
+        mainService.updateBlackLists(blackLists);
     }
 
     private void setBotSettings() {
@@ -61,7 +67,9 @@ public class CryptoExchangesParserBot extends TelegramLongPollingBot {
             botChatId = (String) data.get("bot_chat_id");
             botLoggedIn = !Boolean.parseBoolean(String.valueOf(data.get("bot_need_auth")));
             botPassword = (String) data.get("bot_password");
-            mainService.setCommonBlackList(new ArrayList<>(Arrays.stream(((String) data.get("common_black_list")).split(", ")).toList()));
+            exchangeList = new ArrayList<>(Arrays.stream(((String) data.get("exchange_list")).split(", ")).toList());
+            mainService.setExchangeList(exchangeList);
+            mainService.updateCommonBlackList(new ArrayList<>(Arrays.stream(((String) data.get("common_black_list")).split(", ")).toList()));
             createBlackLists(data);
             topChainsCount = Integer.parseInt(String.valueOf(data.get("top_arb_chains_count")));
             botAutoUpdateSeconds = Integer.parseInt(String.valueOf(data.get("bot_auto_update_seconds")));
@@ -74,44 +82,6 @@ public class CryptoExchangesParserBot extends TelegramLongPollingBot {
         catch(Exception e) {
             throw new RuntimeException(e);
         }
-    }
-
-    public String getChatId() {
-        return botChatId;
-    }
-
-    public CryptoExchangesParserBot(DefaultBotOptions options) {
-        super(options);
-        setBotConfigPath();
-        setBotSettings();
-    }
-
-    @Override
-    public String getBotUsername() {
-        return botUsername;
-    }
-
-    @Override
-    public String getBotToken() {
-        return botToken;
-    }
-
-    @Override
-    public void onUpdateReceived(Update update) {
-        if (update.hasMessage()) {
-            try {
-                handleMessage(update.getMessage());
-            } catch (TelegramApiException | ParseException | IOException e) {
-                throw new RuntimeException(e);
-            }
-        }
-    }
-
-    private void botSendMessage(String text, String chatId) throws TelegramApiException {
-        execute(SendMessage.builder()
-                .text(text)
-                .chatId(chatId)
-                .build());
     }
 
     private static void writeUsingFileWriter(ArrayList<String> dataList) {
@@ -145,7 +115,7 @@ public class CryptoExchangesParserBot extends TelegramLongPollingBot {
 
         return signal.toString();
     }
-    
+
     public void sendYourTopArbChains() throws TelegramApiException {
         ArrayList<ArbChain> arbChains = mainService.getArbChains();
         if (arbChains == null) {
@@ -166,6 +136,65 @@ public class CryptoExchangesParserBot extends TelegramLongPollingBot {
         mainService.updateInstance();
     }
 
+    public String getChatId() {
+        return botChatId;
+    }
+
+    public CryptoExchangesParserBot(DefaultBotOptions options) {
+        super(options);
+        setBotConfigPath();
+        setBotSettings();
+    }
+
+    @Override
+    public String getBotUsername() {
+        return botUsername;
+    }
+
+    @Override
+    public String getBotToken() {
+        return botToken;
+    }
+
+    private void botSendMessage(String text, String chatId) throws TelegramApiException {
+        execute(SendMessage.builder()
+                .text(text)
+                .chatId(chatId)
+                .build());
+    }
+
+    @Override
+    public void onUpdateReceived(Update update) {
+        if (update.hasMessage()) {
+            try {
+                handleMessage(update.getMessage());
+            } catch (TelegramApiException | ParseException | IOException e) {
+                throw new RuntimeException(e);
+            }
+        } else if (update.hasCallbackQuery()) {
+            try {
+                handleCallback(update.getCallbackQuery());
+            } catch (TelegramApiException e) {
+                throw new RuntimeException(e);
+            }
+        }
+    }
+
+    private void handleCallback(CallbackQuery callbackQuery) throws TelegramApiException {
+        Message message = callbackQuery.getMessage();
+        String[] param = callbackQuery.getData().split(":");
+        String action = param[0];
+
+        switch (action) {
+            case "COMMON_BLACK_LIST" -> {
+//                botSendMessage();
+            }
+            case "BLACK_LIST" -> {
+                botSendMessage("Пришлите сообщение в формате:/update_black_list имя_биржи список_через_запятую\nПример: /update_black_list binance BTC, PERP, SOL", botChatId);
+            }
+        }
+    }
+
     private void handleMessage(Message message) throws TelegramApiException, IOException, ParseException {
         if (message.hasText() && message.hasEntities()) {
             Optional<MessageEntity> commonEntity =
@@ -179,6 +208,10 @@ public class CryptoExchangesParserBot extends TelegramLongPollingBot {
                     return;
                 }
                 switch (command) {
+                    case "/start" -> {
+                        final Long chatId = message.getChatId();
+                        botSendMessage("id чата: " + chatId, String.valueOf(chatId));
+                    }
                     case "/password" -> {
                         String pass = message.getText().substring(commonEntity.get().getOffset() + commonEntity.get().getLength() + 1);
                         String loginResult = "";
@@ -189,6 +222,33 @@ public class CryptoExchangesParserBot extends TelegramLongPollingBot {
                             loginResult = "Авторизация пройдена.";
                         }
                         botSendMessage(loginResult, botChatId);
+                    }
+                    case "/set_blacklist_settings" -> {
+                        List<List<InlineKeyboardButton>> buttons = new ArrayList<>();
+                        buttons.add(Collections.singletonList(
+                                InlineKeyboardButton.builder()
+                                        .text("Общий черный список")
+                                        .callbackData("COMMON_BLACK_LIST:")
+                                        .build()
+                        ));
+                        buttons.add(Collections.singletonList(
+                                InlineKeyboardButton.builder()
+                                        .text("Черный список конкретной биржи")
+                                        .callbackData("BLACK_LIST:")
+                                        .build()
+                        ));
+
+                        execute(SendMessage.builder()
+                                .text("Настройки черных списков:")
+                                .chatId(botChatId)
+                                .replyMarkup(new InlineKeyboardMarkup(buttons))
+                                .build());
+                    }
+                    case "/update_black_list" -> {
+
+                    }
+                    case "/get_exchanges" -> {
+                        botSendMessage(exchangeList.toString(), botChatId);
                     }
                     case "/set_filter_pair_to" -> {
                         String filterPairTo = message.getText().substring(commonEntity.get().getOffset() + commonEntity.get().getLength() + 1);
@@ -219,7 +279,7 @@ public class CryptoExchangesParserBot extends TelegramLongPollingBot {
                     case "/get_all_symbols" -> {
                         botSendMessage("Все доступные пары: " + mainService.getCommonSymbols().toString(), botChatId);
                     }
-                    case "/get_your_list_profit_message" -> {
+                    case "/get_your_file_chains" -> {
                         textList = new ArrayList<>();
                         ArrayList<String> finalTextList = textList;
                         mainService.getArbChains().forEach(arbChain -> finalTextList.add(arbChainToTextSignal(arbChain)));
@@ -262,8 +322,6 @@ public class CryptoExchangesParserBot extends TelegramLongPollingBot {
             try {
                 bot.updateMainInstance();
                 bot.sendYourTopArbChains();
-//                System.out.println(botAutoUpdateSeconds);
-//                bot.execute(SendMessage.builder().chatId(botChatId).text("Текущий фильтр ликвидности: " + mainService.getLiquidityFilter()).build());
             } catch (TelegramApiException | IOException | ParseException e) {
                 throw new RuntimeException(e);
             }
@@ -275,6 +333,7 @@ public class CryptoExchangesParserBot extends TelegramLongPollingBot {
         CryptoExchangesParserBot bot = new CryptoExchangesParserBot(new DefaultBotOptions());
         TelegramBotsApi telegramBotsApi = new TelegramBotsApi(DefaultBotSession.class);
         telegramBotsApi.registerBot(bot);
+
         String botChatId = bot.getChatId();
         bot.execute(SendMessage.builder().chatId(botChatId).text("Бот запущен.").build());
         Timer t = new Timer();
