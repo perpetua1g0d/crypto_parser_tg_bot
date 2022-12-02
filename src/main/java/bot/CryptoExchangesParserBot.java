@@ -37,6 +37,7 @@ public class CryptoExchangesParserBot extends TelegramLongPollingBot {
     private static String botPassword = null;
     private static String pathToArbChains = null;
     private static boolean botLoggedIn = false;
+    private static boolean autoUpdateRunning = false;
     private static String botChatId = null;
     public static int botAutoUpdateSeconds = 0;
     private static int topChainsCount = 0;
@@ -152,6 +153,7 @@ public class CryptoExchangesParserBot extends TelegramLongPollingBot {
         config.put("filter_pair_to", mainService.getQuoteAssetFilter());
         config.put("signal_sell_ex_count", mainService.getSubListMaxDim() - 1);
         config.put("path_to_arb_chains", pathToArbChains);
+        config.put("bot_password", botPassword);
 
         File file = new File(botConfigPath + botConfigName);
         try (FileWriter fr = new FileWriter(file)) {
@@ -203,61 +205,134 @@ public class CryptoExchangesParserBot extends TelegramLongPollingBot {
         } else if (update.hasCallbackQuery()) {
             try {
                 handleCallback(update.getCallbackQuery());
-            } catch (TelegramApiException e) {
+            } catch (TelegramApiException | IOException | ParseException e) {
                 throw new RuntimeException(e);
             }
         }
     }
 
-    private void handleCallback(CallbackQuery callbackQuery) throws TelegramApiException {
+    private void handleCallback(CallbackQuery callbackQuery) throws TelegramApiException, IOException, ParseException {
         String[] param = callbackQuery.getData().split(":");
         String action = param[0];
 
         switch (action) {
-            case "BOT_RUN" -> {
-                t = new Timer();
-                autoUpdateTask = new MyTask(bot);
-                t.scheduleAtFixedRate(autoUpdateTask, 0, botAutoUpdateSeconds * 1000L);
-                botSendMessage("Автообновление запущено.", botChatId);
-            }
-            case "SET_SETTINGS" -> {
-                System.out.println();
-            }
-            case "GET_DATA" -> {
-                ReplyKeyboardMarkup replyKeyboardMarkup = new ReplyKeyboardMarkup();
-                replyKeyboardMarkup.setSelective(true);
-                replyKeyboardMarkup.setResizeKeyboard(true);
-                replyKeyboardMarkup.setOneTimeKeyboard(false);
-
-                List<KeyboardRow> keyboard = new ArrayList<>();
-
-                KeyboardRow row1 = new KeyboardRow();
-                KeyboardRow row2 = new KeyboardRow();
-                KeyboardRow row3 = new KeyboardRow();
-                row1.add(new KeyboardButton("Получить предсказание"));
-                row2.add(new KeyboardButton("Моя анкета"));
-                row3.add(new KeyboardButton("Помощь"));
-                keyboard.add(row1);
-                keyboard.add(row2);
-                keyboard.add(row3);
-                replyKeyboardMarkup.setKeyboard(keyboard);
+            case "SET_CHAT_ID" -> botSendMessage("Пришлите сообщение в формате: /set_chat_id id_чата\nПример:/set_chat_id 99999999", botChatId);
+            case "SET_BL_SETTINGS" -> {
+                List<List<InlineKeyboardButton>> buttons = new ArrayList<>();
+                buttons.add(Collections.singletonList(InlineKeyboardButton.builder()
+                        .text("Добавить в общий черный список")
+                        .callbackData("UPDATE_COMMON_BLACK_LIST:")
+                        .build()
+                ));
+                buttons.add(Collections.singletonList(InlineKeyboardButton.builder()
+                        .text("Добавить в конкретный черный список")
+                        .callbackData("UPDATE_BLACK_LIST:")
+                        .build()
+                ));
+                buttons.add(Collections.singletonList(InlineKeyboardButton.builder()
+                        .text("Удалить из общего черного списка")
+                        .callbackData("UPDATE_COMMON_BLACK_LIST:")
+                        .build()
+                ));
+                buttons.add(Collections.singletonList(InlineKeyboardButton.builder()
+                        .text("Удалить из конкретного черного списка")
+                        .callbackData("REMOVE_BLACK_LIST:")
+                        .build()
+                ));
 
                 execute(SendMessage.builder()
-                        .text("Выберите действие:")
+                        .text("Настройки черных списков:")
                         .chatId(botChatId)
-                        .replyMarkup(replyKeyboardMarkup)
+                        .replyMarkup(new InlineKeyboardMarkup(buttons))
                         .build());
             }
-            case "UPDATE_COMMON_BLACK_LIST" -> botSendMessage("Пришлите сообщение в формате:/update_common_black_list имя_биржи: список_через_запятую\nПример: /update_common_black_list BTC, PERP, SOL", botChatId);
-            case "REMOVE_COMMON_BLACK_LIST" -> botSendMessage("Пришлите сообщение в формате:/remove_common_black_list имя_биржи: список_через_запятую\nПример: /remove_common_black_list BTC, PERP, SOL", botChatId);
-            case "UPDATE_BLACK_LIST" -> botSendMessage("Пришлите сообщение в формате:/update_black_list имя_биржи: список_через_запятую\nПример: /update_black_list binance: BTC, PERP, SOL", botChatId);
-            case "REMOVE_BLACK_LIST" -> botSendMessage("Пришлите сообщение в формате:/remove_black_list имя_биржи: список_через_запятую\nПример: /remove_black_list binance: BTC, PERP, SOL", botChatId);
+            case "UPDATE_COMMON_BLACK_LIST" -> botSendMessage("Пришлите сообщение в формате: /update_common_black_list имя_биржи: список_через_запятую\nПример: /update_common_black_list BTC, PERP, SOL", botChatId);
+            case "REMOVE_COMMON_BLACK_LIST" -> botSendMessage("Пришлите сообщение в формате: /remove_common_black_list имя_биржи: список_через_запятую\nПример: /remove_common_black_list BTC, PERP, SOL", botChatId);
+            case "UPDATE_BLACK_LIST" -> botSendMessage("Пришлите сообщение в формате: /update_black_list имя_биржи: список_через_запятую\nПример: /update_black_list binance: BTC, PERP, SOL", botChatId);
+            case "REMOVE_BLACK_LIST" -> botSendMessage("Пришлите сообщение в формате: /remove_black_list имя_биржи: список_через_запятую\nПример: /remove_black_list binance: BTC, PERP, SOL", botChatId);
+            // botSendMessage("Пришлите сообщение в формате: \nПример:", botChatId);
+            case "SET_QUOTE_FILTER" -> botSendMessage("Пришлите сообщение в формате: /set_filter_pair_to имя_тикера\nПример: /set_filter_pair_to USDT", botChatId);
+            case "SET_LIQUIDITY_FILTER" -> botSendMessage("Пришлите сообщение в формате: /set_filter_liquidity целое_число\nПример: /set_filter_liquidity 1000000", botChatId);
+            case "SET_PROFIT_FILTER" -> botSendMessage("Пришлите сообщение в формате: /set_profit_filter вещественное_число\nПример: /set_profit_filter 0.5", botChatId);
+            case "SET_TOP_COUNT" -> botSendMessage("Пришлите сообщение в формате: /set_top_count целое_число\nПример: /set_top_count 3", botChatId);
+            case "SET_SELL_EX_COUNT" -> botSendMessage("Пришлите сообщение в формате: /set_sell_ex_count целое_число\nПример: /set_sell_ex_count 2", botChatId);
+            case "SET_AUTO_UPDATE" -> botSendMessage("Пришлите сообщение в формате: /set_auto_update период_в_секундах\nПример: /set_auto_update 30", botChatId);
+            case "GET_COMMON_BL" -> {
+                Set<String> commonBlackListSet = mainService.getCommonBlackListSet();
+                botSendMessage(commonBlackListSet.toString().replaceAll("[\\[\\]]", "").replaceAll(",", " "), botChatId);
+            }
+            case "GET_BLS" -> {
+                Map<String, Set<String>> blackLists = mainService.getBlackLists();
+                blackLists.forEach((key, value) -> {
+                    try {
+                        botSendMessage(key + ": " + value.toString().replaceAll("[\\[\\]]", "").replaceAll(",", " "), botChatId);
+                    } catch (TelegramApiException e) {
+                        throw new RuntimeException(e);
+                    }
+                });
+            }
+            case "PARSE_DATA" -> {
+                botSendMessage("Данные обновляются...", botChatId);
+                mainService.updateInstance();
+                botSendMessage("Все данные были обновлены.", botChatId);
+            }
+            case "GET_TOP_FILTERED" -> sendYourTopArbChains();
+            case "GET_ARBS_TO_FILE" -> {
+                ArrayList<String> textList = new ArrayList<>();
+                mainService.getArbChains().forEach(arbChain -> textList.add(arbChainToTextSignal(arbChain)));
+
+                if (textList.isEmpty()) {
+                    System.out.println("В данный момент нет доступных связок по заданным фильтрам.");
+                    return;
+                }
+                writeUsingFileWriter(textList);
+                botSendMessage("Связки записаны в файл " + pathToArbChains, botChatId);
+            }
+            case "GET_EXCHANGE_LIST" -> {
+                ArrayList<ArbChain> arbChains = mainService.getUnfilteredArbChains();
+                for (int i = 0; i < Math.min(arbChains.size(), topChainsCount); ++i) {
+                    botSendMessage(arbChainToTextSignal(arbChains.get(i)), botChatId);
+                }
+            }
+            default -> botSendMessage("Невозможно распознать команду.", botChatId);
         }
     }
 
+    private void setMarkup(String messageText, List<String> buttonTexts) throws TelegramApiException {
+        ReplyKeyboardMarkup replyKeyboardMarkup = new ReplyKeyboardMarkup();
+        replyKeyboardMarkup.setSelective(true);
+        replyKeyboardMarkup.setResizeKeyboard(false);
+        replyKeyboardMarkup.setOneTimeKeyboard(false);
+
+        List<KeyboardRow> keyboard = new ArrayList<>();
+        buttonTexts.forEach(text -> {
+            KeyboardRow cur = new KeyboardRow();
+            cur.add(new KeyboardButton(text));
+            keyboard.add(cur);
+        });
+        replyKeyboardMarkup.setKeyboard(keyboard);
+
+        execute(SendMessage.builder()
+                .text(messageText)
+                .chatId(botChatId)
+                .replyMarkup(replyKeyboardMarkup)
+                .build());
+    }
+
+    private void setMenu() throws TelegramApiException {
+        List<String> buttonTexts = new ArrayList<>();
+        if (!autoUpdateRunning)
+            buttonTexts.add("Запуск автообновления");
+
+        buttonTexts.addAll(Arrays.asList("Действия с данными", "Задать настройки", "Обновить конфиг", "Сохранить настройки в конфиг"));
+        setMarkup("Выберите действие:", buttonTexts);
+    }
 
     private void handleMessage(Message message) throws TelegramApiException, IOException, ParseException {
-        if (message.hasText() && message.hasEntities()) {
+        if (!message.hasText())
+            return;
+
+        if (message.hasEntities()) {
             Optional<MessageEntity> commonEntity =
                     message.getEntities().stream().filter(e -> "bot_command".equals(e.getType())).findFirst();
             if (commonEntity.isPresent()) {
@@ -265,32 +340,19 @@ public class CryptoExchangesParserBot extends TelegramLongPollingBot {
                 ArrayList<String> textList = new ArrayList<>();
                 ArrayList<ArbChain> arbChains = new ArrayList<>();
                 if (!botLoggedIn && !(command.equals("/password") || command.equals("/reload_settings"))) {
-                    botSendMessage("Сначала введите пароль от бота.", botChatId);
+                    botSendMessage("Сначала введите пароль от бота, команда /password.", botChatId);
                     return;
                 }
                 switch (command) {
                     case "/start" -> {
-                        final Long chatId = message.getChatId();
-                        botChatId = String.valueOf(chatId);
-                        List<List<InlineKeyboardButton>> buttons = new ArrayList<>();
-                        buttons.add(Collections.singletonList(InlineKeyboardButton.builder()
-                                .text("Запуск автообновления")
-                                .callbackData("BOT_RUN:")
-                                .build()
-                        ));
-                        buttons.add(Collections.singletonList(InlineKeyboardButton.builder()
-                                .text("Задать настройки")
-                                .callbackData("SET_SETTINGS:")
-                                .build()
-                        ));
-
-                        execute(SendMessage.builder()
-                                .text("id чата: " + chatId + ". Параметры старта:")
-                                .chatId(botChatId)
-                                .replyMarkup(new InlineKeyboardMarkup(buttons))
-                                .build());
+                        setMarkup("id данного чата: " + message.getChatId() + "\nВыберите действие:",
+                                new ArrayList<>(Arrays.asList("Запуск автообновления", "Задать настройки", "Меню")));
                     }
                     case "/stop" -> {
+                        if (t == null) {
+                            botSendMessage("Автообновление не задано.", botChatId);
+                        }
+
                         t.cancel();
                         botSendMessage("Автообновление остановлено.", botChatId);
                     }
@@ -307,16 +369,15 @@ public class CryptoExchangesParserBot extends TelegramLongPollingBot {
                                 .build()
                         ));
                         buttons.add(Collections.singletonList(InlineKeyboardButton.builder()
-                                .text("Обновить настройки")
+                                .text("Обновить конфиг")
                                 .callbackData("UPDATE_SETTINGS:")
                                 .build()
                         ));
                         buttons.add(Collections.singletonList(InlineKeyboardButton.builder()
-                                .text("Сохранить настройки")
+                                .text("Сохранить настройки в конфиг")
                                 .callbackData("SAVE_SETTINGS:")
                                 .build()
                         ));
-                        //EditMessageReplyMarkup
 
                         execute(SendMessage.builder()
                                 .text("Выберите действие:")
@@ -325,7 +386,19 @@ public class CryptoExchangesParserBot extends TelegramLongPollingBot {
                                 .build());
                     }
                     case "/password" -> {
-                        String pass = message.getText().substring(commonEntity.get().getOffset() + commonEntity.get().getLength() + 1);
+                        String pass = "";
+                        try {
+                            pass = message.getText().substring(commonEntity.get().getOffset() + commonEntity.get().getLength() + 1);
+                        } catch (Exception e) {
+                            botSendMessage("Введенный пароль пуст. Попробуй снова.\nПример: /password a12345", botChatId);
+                            return;
+                        }
+
+                        if (pass.isEmpty()) {
+                            botSendMessage("Введенный пароль пуст. Попробуй снова.\nПример: /password a12345", botChatId);
+                            return;
+                        }
+
                         String loginResult = "";
                         if (!pass.equals(botPassword)) {
                             loginResult = "Пароль неверный.";
@@ -334,6 +407,36 @@ public class CryptoExchangesParserBot extends TelegramLongPollingBot {
                             loginResult = "Авторизация пройдена.";
                         }
                         botSendMessage(loginResult, botChatId);
+                    }
+                    case "/set_chat_id" -> {
+                        String substring = message.getText().substring(commonEntity.get().getOffset() + commonEntity.get().getLength() + 1);
+                        if (substring.isEmpty()) {
+                            botSendMessage("Данные в сообщении не найдены.", botChatId);
+                            return;
+                        }
+
+                        botChatId = substring;
+                        botSendMessage("id чата был обновлен.", botChatId);
+                    }
+                    case "/set_top_count" -> {
+                        String substring = message.getText().substring(commonEntity.get().getOffset() + commonEntity.get().getLength() + 1);
+                        if (substring.isEmpty()) {
+                            botSendMessage("Данные в сообщении не найдены.", botChatId);
+                            return;
+                        }
+
+                        topChainsCount = Integer.parseInt(substring);
+                        botSendMessage("Количество сигналов в топе было обновлено.", botChatId);
+                    }
+                    case "/set_sell_ex_count" -> {
+                        String substring = message.getText().substring(commonEntity.get().getOffset() + commonEntity.get().getLength() + 1);
+                        if (substring.isEmpty()) {
+                            botSendMessage("Данные в сообщении не найдены.", botChatId);
+                            return;
+                        }
+
+                        mainService.setSubListMaxDim(Integer.parseInt(substring) + 1);
+                        botSendMessage("Количество бирж было изменено", botChatId);
                     }
                     case "/set_blacklist_settings" -> {
                         List<List<InlineKeyboardButton>> buttons = new ArrayList<>();
@@ -397,7 +500,7 @@ public class CryptoExchangesParserBot extends TelegramLongPollingBot {
                     case "/save_settings_to_config" -> {
                         setBotSettings();
                         saveSettingsToConfig();
-                        botSendMessage("Настройки были успешно сохранены в конфигурационный файл.", botChatId);
+                        botSendMessage("Настройки были успешно обновлены и сохранены в конфигурационный файл.", botChatId);
                     }
                     case "/set_filter_pair_to" -> {
                         String filterPairTo = message.getText().substring(commonEntity.get().getOffset() + commonEntity.get().getLength() + 1);
@@ -420,6 +523,16 @@ public class CryptoExchangesParserBot extends TelegramLongPollingBot {
                         mainService.setAllowedBaseAssetsSet(allowed_list);
                         botSendMessage("Список разрешенных базовых криптовалют установлен.", botChatId);
                     }
+                    case "/set_profit_filter" -> {
+                        String substring = message.getText().substring(commonEntity.get().getOffset() + commonEntity.get().getLength() + 1);
+                        if (substring.isEmpty()) {
+                            botSendMessage("Данные в сообщении не найдены.", botChatId);
+                            return;
+                        }
+
+                        mainService.setArbChainProfitFilter(substring);
+                        botSendMessage("Фильтр по профиту обновлен.", botChatId);
+                    }
                     case "/set_auto_update" -> {
                         String substring = message.getText().substring(commonEntity.get().getOffset() + commonEntity.get().getLength() + 1);
                         if (substring.isEmpty()) {
@@ -428,11 +541,17 @@ public class CryptoExchangesParserBot extends TelegramLongPollingBot {
                         }
 
                         botAutoUpdateSeconds = Integer.parseInt(substring);
+                        botSendMessage("Период автоматического обновления задан.", botChatId);
+
+                        if (t == null)
+                            return;
+
                         t.cancel();
                         t = new Timer();
                         autoUpdateTask = new MyTask(bot);
                         t.scheduleAtFixedRate(autoUpdateTask, 0, botAutoUpdateSeconds * 1000L);
-                        botSendMessage("Период автоматического обновления задан.", botChatId);
+                        botSendMessage("Автообновление перезапущено.", botChatId);
+                        autoUpdateRunning = true;
                     }
                     case "/update" -> {
                         botSendMessage("Данные обновляются...", botChatId);
@@ -441,9 +560,6 @@ public class CryptoExchangesParserBot extends TelegramLongPollingBot {
                     }
                     case "/get_exchanges" -> {
                         botSendMessage(exchangeList.toString(), botChatId);
-                    }
-                    case "/get_all_symbols" -> {
-                        botSendMessage("Все доступные пары: " + mainService.getCommonSymbols().toString(), botChatId);
                     }
                     case "/get_your_file_chains" -> {
                         textList = new ArrayList<>();
@@ -466,6 +582,20 @@ public class CryptoExchangesParserBot extends TelegramLongPollingBot {
                             botSendMessage(arbChainToTextSignal(arbChains.get(i)), botChatId);
                         }
                     }
+                    case "/get_common_bl" -> {
+                        Set<String> commonBlackListSet = mainService.getCommonBlackListSet();
+                        botSendMessage(commonBlackListSet.toString().replaceAll("[\\[\\]]", "").replaceAll(",", " "), botChatId);
+                    }
+                    case "/get_all_bl" -> {
+                        Map<String, Set<String>> blackLists = mainService.getBlackLists();
+                        blackLists.forEach((key, value) -> {
+                            try {
+                                botSendMessage(key + ": " + value.toString().replaceAll("[\\[\\]]", "").replaceAll(",", " "), botChatId);
+                            } catch (TelegramApiException e) {
+                                throw new RuntimeException(e);
+                            }
+                        });
+                    }
                     case "/reload_settings" -> {
                         setBotSettings();
                         botSendMessage("Настройки обновились.", botChatId);
@@ -473,6 +603,118 @@ public class CryptoExchangesParserBot extends TelegramLongPollingBot {
                     default -> botSendMessage("Бот не может прочитать данную команду.", botChatId);
                 }
             }
+        } else if (botLoggedIn) {
+            final String messageText = message.getText();
+            switch (messageText) {
+                case "Меню" -> setMenu();
+                case "Запуск автообновления" -> {
+                    t = new Timer();
+                    autoUpdateTask = new MyTask(bot);
+                    t.scheduleAtFixedRate(autoUpdateTask, 0, botAutoUpdateSeconds * 1000L);
+                    botSendMessage("Автообновление запущено.", botChatId);
+                    autoUpdateRunning = true;
+                    setMenu();
+                }
+                case "Действия с данными" -> {
+                    List<List<InlineKeyboardButton>> buttons = new ArrayList<>();
+                    buttons.add(Arrays.asList(
+                            InlineKeyboardButton.builder()
+                                    .text("Общий ЧС")
+                                    .callbackData("GET_COMMON_BL:")
+                                    .build(),
+                            InlineKeyboardButton.builder()
+                                    .text("Конкретные ЧС")
+                                    .callbackData("GET_BLS:")
+                                    .build()));
+                    buttons.add(Collections.singletonList(InlineKeyboardButton.builder()
+                            .text("Парсить данные")
+                            .callbackData("PARSE_DATA:")
+                            .build()
+                    ));
+                    buttons.add(Collections.singletonList(InlineKeyboardButton.builder()
+                            .text("Топ по фильтрам")
+                            .callbackData("GET_TOP_FILTERED:")
+                            .build()
+                    ));
+                    buttons.add(Collections.singletonList(InlineKeyboardButton.builder()
+                            .text("Связки по фильтру в файл")
+                            .callbackData("GET_ARBS_TO_FILE:")
+                            .build()
+                    ));
+                    buttons.add(Collections.singletonList(InlineKeyboardButton.builder()
+                            .text("Список обрабатываемых бирж")
+                            .callbackData("GET_EXCHANGE_LIST:")
+                            .build()
+                    ));
+
+                    execute(SendMessage.builder()
+                            .text("Выберите действие:")
+                            .chatId(botChatId)
+                            .replyMarkup(new InlineKeyboardMarkup(buttons))
+                            .build());
+                }
+                case "Задать настройки" -> {
+                    List<List<InlineKeyboardButton>> buttons = new ArrayList<>();
+                    buttons.add(Collections.singletonList(InlineKeyboardButton.builder()
+                            .text("Задать id чата")
+                            .callbackData("SET_CHAT_ID:")
+                            .build()
+                    ));
+                    buttons.add(Collections.singletonList(InlineKeyboardButton.builder()
+                            .text("Задать настройки ЧС")
+                            .callbackData("SET_BL_SETTINGS:")
+                            .build()
+                    ));
+                    buttons.add(Collections.singletonList(InlineKeyboardButton.builder()
+                            .text("Задать фильтр по паре")
+                            .callbackData("SET_QUOTE_FILTER:")
+                            .build()
+                    ));
+                    buttons.add(Collections.singletonList(InlineKeyboardButton.builder()
+                            .text("Задать фильтр по ликвидности")
+                            .callbackData("SET_LIQUIDITY_FILTER:")
+                            .build()
+                    ));
+                    buttons.add(Collections.singletonList(InlineKeyboardButton.builder()
+                            .text("Задать фильтр по профиту")
+                            .callbackData("SET_PROFIT_FILTER:")
+                            .build()
+                    ));
+                    buttons.add(Collections.singletonList(InlineKeyboardButton.builder()
+                            .text("Задать количество сигналов в топе")
+                            .callbackData("SET_TOP_COUNT:")
+                            .build()
+                    ));
+                    buttons.add(Collections.singletonList(InlineKeyboardButton.builder()
+                            .text("Задать количество бирж, на которых пара продается")
+                            .callbackData("SET_SELL_EX_COUNT:")
+                            .build()
+                    ));
+                    buttons.add(Collections.singletonList(InlineKeyboardButton.builder()
+                            .text("Задать период автоапдейта")
+                            .callbackData("SET_AUTO_UPDATE:")
+                            .build()
+                    ));
+
+                    execute(SendMessage.builder()
+                            .text("Выберите действие:")
+                            .chatId(botChatId)
+                            .replyMarkup(new InlineKeyboardMarkup(buttons))
+                            .build());
+                }
+                case "Обновить настройки" -> {
+                    setBotSettings();
+                    botSendMessage("Настройки обновились.", botChatId);
+                }
+                case "Сохранить настройки" -> {
+                    setBotSettings();
+                    saveSettingsToConfig();
+                    botSendMessage("Настройки были успешно обновлены и сохранены в конфигурационный файл.", botChatId);
+                }
+                default -> botSendMessage("Бот не может распознать данное сообщение.", botChatId);
+            }
+        } else {
+            botSendMessage("Сначала введите пароль от бота, команда /password.", botChatId);
         }
     }
 
@@ -492,7 +734,6 @@ public class CryptoExchangesParserBot extends TelegramLongPollingBot {
                 throw new RuntimeException(e);
             }
         }
-
     }
 
     public static void main(String[] args) throws TelegramApiException {
