@@ -11,7 +11,10 @@ import org.telegram.telegrambots.meta.api.objects.Message;
 import org.telegram.telegrambots.meta.api.objects.MessageEntity;
 import org.telegram.telegrambots.meta.api.objects.Update;
 import org.telegram.telegrambots.meta.api.objects.replykeyboard.InlineKeyboardMarkup;
+import org.telegram.telegrambots.meta.api.objects.replykeyboard.ReplyKeyboardMarkup;
 import org.telegram.telegrambots.meta.api.objects.replykeyboard.buttons.InlineKeyboardButton;
+import org.telegram.telegrambots.meta.api.objects.replykeyboard.buttons.KeyboardButton;
+import org.telegram.telegrambots.meta.api.objects.replykeyboard.buttons.KeyboardRow;
 import org.telegram.telegrambots.meta.exceptions.TelegramApiException;
 import org.telegram.telegrambots.updatesreceivers.DefaultBotSession;
 
@@ -211,6 +214,40 @@ public class CryptoExchangesParserBot extends TelegramLongPollingBot {
         String action = param[0];
 
         switch (action) {
+            case "BOT_RUN" -> {
+                t = new Timer();
+                autoUpdateTask = new MyTask(bot);
+                t.scheduleAtFixedRate(autoUpdateTask, 0, botAutoUpdateSeconds * 1000L);
+                botSendMessage("Автообновление запущено.", botChatId);
+            }
+            case "SET_SETTINGS" -> {
+                System.out.println();
+            }
+            case "GET_DATA" -> {
+                ReplyKeyboardMarkup replyKeyboardMarkup = new ReplyKeyboardMarkup();
+                replyKeyboardMarkup.setSelective(true);
+                replyKeyboardMarkup.setResizeKeyboard(true);
+                replyKeyboardMarkup.setOneTimeKeyboard(false);
+
+                List<KeyboardRow> keyboard = new ArrayList<>();
+
+                KeyboardRow row1 = new KeyboardRow();
+                KeyboardRow row2 = new KeyboardRow();
+                KeyboardRow row3 = new KeyboardRow();
+                row1.add(new KeyboardButton("Получить предсказание"));
+                row2.add(new KeyboardButton("Моя анкета"));
+                row3.add(new KeyboardButton("Помощь"));
+                keyboard.add(row1);
+                keyboard.add(row2);
+                keyboard.add(row3);
+                replyKeyboardMarkup.setKeyboard(keyboard);
+
+                execute(SendMessage.builder()
+                        .text("Выберите действие:")
+                        .chatId(botChatId)
+                        .replyMarkup(replyKeyboardMarkup)
+                        .build());
+            }
             case "UPDATE_COMMON_BLACK_LIST" -> botSendMessage("Пришлите сообщение в формате:/update_common_black_list имя_биржи: список_через_запятую\nПример: /update_common_black_list BTC, PERP, SOL", botChatId);
             case "REMOVE_COMMON_BLACK_LIST" -> botSendMessage("Пришлите сообщение в формате:/remove_common_black_list имя_биржи: список_через_запятую\nПример: /remove_common_black_list BTC, PERP, SOL", botChatId);
             case "UPDATE_BLACK_LIST" -> botSendMessage("Пришлите сообщение в формате:/update_black_list имя_биржи: список_через_запятую\nПример: /update_black_list binance: BTC, PERP, SOL", botChatId);
@@ -234,7 +271,58 @@ public class CryptoExchangesParserBot extends TelegramLongPollingBot {
                 switch (command) {
                     case "/start" -> {
                         final Long chatId = message.getChatId();
-                        botSendMessage("id чата: " + chatId, String.valueOf(chatId));
+                        botChatId = String.valueOf(chatId);
+                        List<List<InlineKeyboardButton>> buttons = new ArrayList<>();
+                        buttons.add(Collections.singletonList(InlineKeyboardButton.builder()
+                                .text("Запуск автообновления")
+                                .callbackData("BOT_RUN:")
+                                .build()
+                        ));
+                        buttons.add(Collections.singletonList(InlineKeyboardButton.builder()
+                                .text("Задать настройки")
+                                .callbackData("SET_SETTINGS:")
+                                .build()
+                        ));
+
+                        execute(SendMessage.builder()
+                                .text("id чата: " + chatId + ". Параметры старта:")
+                                .chatId(botChatId)
+                                .replyMarkup(new InlineKeyboardMarkup(buttons))
+                                .build());
+                    }
+                    case "/stop" -> {
+                        t.cancel();
+                        botSendMessage("Автообновление остановлено.", botChatId);
+                    }
+                    case "/menu" -> {
+                        List<List<InlineKeyboardButton>> buttons = new ArrayList<>();
+                        buttons.add(Collections.singletonList(InlineKeyboardButton.builder()
+                                .text("Посмотреть данные")
+                                .callbackData("GET_DATA:")
+                                .build()
+                        ));
+                        buttons.add(Collections.singletonList(InlineKeyboardButton.builder()
+                                .text("Задать настройки")
+                                .callbackData("SET_SETTINGS:")
+                                .build()
+                        ));
+                        buttons.add(Collections.singletonList(InlineKeyboardButton.builder()
+                                .text("Обновить настройки")
+                                .callbackData("UPDATE_SETTINGS:")
+                                .build()
+                        ));
+                        buttons.add(Collections.singletonList(InlineKeyboardButton.builder()
+                                .text("Сохранить настройки")
+                                .callbackData("SAVE_SETTINGS:")
+                                .build()
+                        ));
+                        //EditMessageReplyMarkup
+
+                        execute(SendMessage.builder()
+                                .text("Выберите действие:")
+                                .chatId(botChatId)
+                                .replyMarkup(new InlineKeyboardMarkup(buttons))
+                                .build());
                     }
                     case "/password" -> {
                         String pass = message.getText().substring(commonEntity.get().getOffset() + commonEntity.get().getLength() + 1);
@@ -249,26 +337,22 @@ public class CryptoExchangesParserBot extends TelegramLongPollingBot {
                     }
                     case "/set_blacklist_settings" -> {
                         List<List<InlineKeyboardButton>> buttons = new ArrayList<>();
-                        buttons.add(Collections.singletonList(
-                                InlineKeyboardButton.builder()
+                        buttons.add(Collections.singletonList(InlineKeyboardButton.builder()
                                         .text("Добавить в общий черный список")
                                         .callbackData("UPDATE_COMMON_BLACK_LIST:")
                                         .build()
                         ));
-                        buttons.add(Collections.singletonList(
-                                InlineKeyboardButton.builder()
+                        buttons.add(Collections.singletonList(InlineKeyboardButton.builder()
                                         .text("Добавить в конкретный черный список")
                                         .callbackData("UPDATE_BLACK_LIST:")
                                         .build()
                         ));
-                        buttons.add(Collections.singletonList(
-                                InlineKeyboardButton.builder()
+                        buttons.add(Collections.singletonList(InlineKeyboardButton.builder()
                                         .text("Удалить из общего черного списка")
                                         .callbackData("UPDATE_COMMON_BLACK_LIST:")
                                         .build()
                         ));
-                        buttons.add(Collections.singletonList(
-                                InlineKeyboardButton.builder()
+                        buttons.add(Collections.singletonList(InlineKeyboardButton.builder()
                                         .text("Удалить из конкретного черного списка")
                                         .callbackData("REMOVE_BLACK_LIST:")
                                         .build()
@@ -416,10 +500,10 @@ public class CryptoExchangesParserBot extends TelegramLongPollingBot {
         TelegramBotsApi telegramBotsApi = new TelegramBotsApi(DefaultBotSession.class);
         telegramBotsApi.registerBot(bot);
 
-        String botChatId = bot.getChatId();
-        bot.execute(SendMessage.builder().chatId(botChatId).text("Бот запущен.").build());
-        t = new Timer();
-        autoUpdateTask = new MyTask(bot);
-        t.scheduleAtFixedRate(autoUpdateTask, 0, botAutoUpdateSeconds * 1000L);
+//        String botChatId = bot.getChatId();
+//        bot.execute(SendMessage.builder().chatId(botChatId).text("Бот запущен.").build());
+//        t = new Timer();
+//        autoUpdateTask = new MyTask(bot);
+//        t.scheduleAtFixedRate(autoUpdateTask, 0, botAutoUpdateSeconds * 1000L);
     }
 }
