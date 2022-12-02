@@ -1,5 +1,5 @@
 {
-    "signal_sell_ex_count": 2,
+    "signal_sell_ex_count": 1,
     "huobi_black_list": "",
     "filter_profit": 0.01,
     "bot_need_auth": false,
@@ -16,5 +16,6 @@
     "bot_token": "5776713944:AAHndXSbBCk-_G4OvJd_gKPPaun6DfH7g60",
     "common_black_list": "",
     "binance_black_list": "FTT",
-    "top_arb_chains_count": 3
+    "top_arb_chains_count": 3,
+    "path_to_arb_chains": "/home/alexey/prog/projects/crypto_parser_tg_bot/"
 }

@@ -25,7 +25,7 @@ public class MainService {
     private static Set<String> allowedBaseAssetsSet = null;
     private static Set<String> commonBlackListSet = null;
     private static ArrayList<String> exchangeList = null;
-    private static ArrayList<String> fullExchangeList = new ArrayList<>(Arrays.asList("binance", "okx", "huobi", "bybit", "kucoin", "gate"));
+    private static final ArrayList<String> fullExchangeList = new ArrayList<>(Arrays.asList("binance", "okx", "huobi", "bybit", "kucoin", "gate"));
     private static Map<String, Set<String>> blackLists = null;
     private static HashMap<String, PairAsset> bybitMapping = null;
     private static HashMap<String, PairAsset> binanceMapping = null;

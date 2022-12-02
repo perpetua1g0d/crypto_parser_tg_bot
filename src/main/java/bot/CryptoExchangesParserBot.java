@@ -22,6 +22,9 @@ import java.util.stream.Collectors;
 
 
 public class CryptoExchangesParserBot extends TelegramLongPollingBot {
+    public static CryptoExchangesParserBot bot;
+    public static Timer t;
+    public static MyTask autoUpdateTask;
     public static final MainService mainService = MainService.getInstance();
     private static ArrayList<String> exchangeList = null;
     private static String botConfigPath = null;
@@ -145,6 +148,7 @@ public class CryptoExchangesParserBot extends TelegramLongPollingBot {
         config.put("filter_liquidity", Integer.parseInt(mainService.getLiquidityFilter()));
         config.put("filter_pair_to", mainService.getQuoteAssetFilter());
         config.put("signal_sell_ex_count", mainService.getSubListMaxDim() - 1);
+        config.put("path_to_arb_chains", pathToArbChains);
 
         File file = new File(botConfigPath + botConfigName);
         try (FileWriter fr = new FileWriter(file)) {
@@ -307,6 +311,7 @@ public class CryptoExchangesParserBot extends TelegramLongPollingBot {
                         botSendMessage("Черный список " + exName + " был обновлен.", botChatId);
                     }
                     case "/save_settings_to_config" -> {
+                        setBotSettings();
                         saveSettingsToConfig();
                         botSendMessage("Настройки были успешно сохранены в конфигурационный файл.", botChatId);
                     }
@@ -330,6 +335,20 @@ public class CryptoExchangesParserBot extends TelegramLongPollingBot {
                         ArrayList<String> allowed_list = new ArrayList<>(Arrays.stream(substring.split(", ")).toList());
                         mainService.setAllowedBaseAssetsSet(allowed_list);
                         botSendMessage("Список разрешенных базовых криптовалют установлен.", botChatId);
+                    }
+                    case "/set_auto_update" -> {
+                        String substring = message.getText().substring(commonEntity.get().getOffset() + commonEntity.get().getLength() + 1);
+                        if (substring.isEmpty()) {
+                            botSendMessage("Пустые данные. Попробуйте еще раз.", botChatId);
+                            return;
+                        }
+
+                        botAutoUpdateSeconds = Integer.parseInt(substring);
+                        t.cancel();
+                        t = new Timer();
+                        autoUpdateTask = new MyTask(bot);
+                        t.scheduleAtFixedRate(autoUpdateTask, 0, botAutoUpdateSeconds * 1000L);
+                        botSendMessage("Период автоматического обновления задан.", botChatId);
                     }
                     case "/update" -> {
                         botSendMessage("Данные обновляются...", botChatId);
@@ -374,17 +393,17 @@ public class CryptoExchangesParserBot extends TelegramLongPollingBot {
     }
 
     private static class MyTask extends TimerTask {
-        private static CryptoExchangesParserBot bot;
+        private static CryptoExchangesParserBot TaskBot;
 
-        public MyTask(CryptoExchangesParserBot bot) {
-            MyTask.bot = bot;
+        public MyTask(CryptoExchangesParserBot newBot) {
+            MyTask.TaskBot = newBot;
         }
 
         @Override
         public void run() {
             try {
-                bot.updateMainInstance();
-                bot.sendYourTopArbChains();
+                TaskBot.updateMainInstance();
+                TaskBot.sendYourTopArbChains();
             } catch (TelegramApiException | IOException | ParseException e) {
                 throw new RuntimeException(e);
             }
@@ -393,14 +412,14 @@ public class CryptoExchangesParserBot extends TelegramLongPollingBot {
     }
 
     public static void main(String[] args) throws TelegramApiException {
-        CryptoExchangesParserBot bot = new CryptoExchangesParserBot(new DefaultBotOptions());
+        bot = new CryptoExchangesParserBot(new DefaultBotOptions());
         TelegramBotsApi telegramBotsApi = new TelegramBotsApi(DefaultBotSession.class);
         telegramBotsApi.registerBot(bot);
 
         String botChatId = bot.getChatId();
         bot.execute(SendMessage.builder().chatId(botChatId).text("Бот запущен.").build());
-        Timer t = new Timer();
-        MyTask mTask = new MyTask(bot);
-        t.scheduleAtFixedRate(mTask, 0, botAutoUpdateSeconds * 1000L);
+        t = new Timer();
+        autoUpdateTask = new MyTask(bot);
+        t.scheduleAtFixedRate(autoUpdateTask, 0, botAutoUpdateSeconds * 1000L);
     }
 }
