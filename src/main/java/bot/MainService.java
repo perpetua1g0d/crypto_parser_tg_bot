@@ -76,6 +76,7 @@ public class MainService {
 
     public Set<String> getCommonBlackListSet() {
         return commonBlackListSet;
+//        return commonBlackListSet.stream().filter(symb -> !symb.isEmpty()).collect(Collectors.toSet());
     }
 
     public Map<String, Set<String>> getBlackLists() {
@@ -114,11 +115,14 @@ public class MainService {
         commonBlackListSet.addAll(new HashSet<>(symbols));
     }
 
-    public void removeCommonBlackList(ArrayList<String> symbols) {
+    public void removeCommonBlackList(Set<String> symbols) {
         if (commonBlackListSet == null)
             return;
 
-        commonBlackListSet.removeAll(new HashSet<>(symbols));
+//        symbols.forEach(commonBlackListSet::remove);
+        commonBlackListSet.removeAll(symbols);
+        commonBlackListSet = new HashSet<>(commonBlackListSet);
+        System.out.println("После удаления общий чс: " + commonBlackListSet);
     }
 
     public void updateBlackLists(Map<String, Set<String>> newBlackLists) {
